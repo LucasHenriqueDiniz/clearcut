@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ClearCut",
+  "version": "0.1.0",
+  "identifier": "com.local.clearcut",
+  "build": {
+    "beforeDevCommand": "cd ../frontend && npm run dev",
+    "beforeBuildCommand": "cd ../frontend && npm run build",
+    "devUrl": "http://localhost:3000",
+    "frontendDist": "../frontend/out"
+  },
+  "app": {
+    "security": {
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost blob: data:;",
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      }
+    },
+    "windows": [
+      {
+        "label": "main",
+        "title": "ClearCut",
+        "width": 1460,
+        "height": 980,
+        "minWidth": 1180,
+        "minHeight": 760,
+        "resizable": true,
+        "decorations": false
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "appimage"],
+    "resources": [
+      "resources/backend/**/*"
+    ],
+    "icon": [
+      "../frontend/public/favicon.ico",
+      "../frontend/public/icon.png"
+    ]
+  }
+}

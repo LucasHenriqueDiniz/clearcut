@@ -1,0 +1,44 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: removebgs_backend
+    environment:
+      BACKEND_HOST: 0.0.0.0
+      BACKEND_PORT: 8000
+      APP_NAME: Image Production Utility
+      DATA_DIR: /app/runtime/data
+      UPLOAD_DIR: /app/runtime/uploads
+      OUTPUT_DIR: /app/runtime/outputs
+      HOST_UPLOAD_DIR: ./runtime/backend/uploads
+      HOST_OUTPUT_DIR: ./runtime/backend/outputs
+      LOG_LEVEL: INFO
+      USE_ONLY_LOCAL: "false"
+      RUNNING_IN_DOCKER: "true"
+      U2NET_HOME: /app/runtime/models
+    volumes:
+      - ./runtime/backend/data:/app/runtime/data
+      - ./runtime/backend/uploads:/app/runtime/uploads
+      - ./runtime/backend/outputs:/app/runtime/outputs
+      - ./runtime/backend/models:/app/runtime/models
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: removebgs_frontend
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    restart: unless-stopped

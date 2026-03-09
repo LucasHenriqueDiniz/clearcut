@@ -1,0 +1,38 @@
+# Node
+frontend/node_modules
+frontend/.next
+frontend/.turbo
+frontend/tsconfig.tsbuildinfo
+
+# Python
+backend/.venv
+backend/__pycache__
+backend/**/*.pyc
+
+# Runtime data
+backend/data/*.db
+backend/data/providers.json
+backend/uploads/*
+backend/outputs/*
+!backend/outputs/.gitkeep
+runtime/backend/data/*
+runtime/backend/uploads/*
+runtime/backend/outputs/*
+runtime/backend/models/*
+!runtime/.gitkeep
+src-tauri/target
+src-tauri/resources/backend/*
+!src-tauri/resources/backend/.gitkeep
+.build
+frontend/out
+.frontend-node_modules-backup
+frontend/.git.bak
+
+# Env
+.env
+backend/.env
+frontend/.env.local
+
+# OS
+.DS_Store
+Thumbs.db
