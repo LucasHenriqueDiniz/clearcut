@@ -61,6 +61,15 @@ jobs:
       - name: Build backend sidecar
         run: python scripts/build-backend-sidecar.py
 
+      - name: Verify backend sidecar
+        shell: bash
+        run: |
+          if [[ "${{ matrix.platform }}" == "windows-latest" ]]; then
+            test -f src-tauri/resources/backend/ipu-backend.exe
+          else
+            test -f src-tauri/resources/backend/ipu-backend
+          fi
+
       - name: Build Tauri app
         run: npm run tauri:build
         working-directory: frontend
