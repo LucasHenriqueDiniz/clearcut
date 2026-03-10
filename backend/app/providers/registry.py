@@ -29,7 +29,8 @@ class ProviderRegistry:
 
     def _ensure_defaults(self) -> None:
         known = {p.name for p in self.settings.providers}
-        defaults = {"simple_cv_local": 1, "rembg_local": 5, "remove_bg_api": 20}
+        settings_by_name = {p.name: p for p in self.settings.providers}
+        defaults = {"rembg_local": 1, "simple_cv_local": 10, "remove_bg_api": 20}
         changed = False
         for name, prio in defaults.items():
             if name not in known:
@@ -41,6 +42,16 @@ class ProviderRegistry:
                         "keys": [],
                     }
                 )
+                changed = True
+
+        rembg = settings_by_name.get("rembg_local")
+        simple = settings_by_name.get("simple_cv_local")
+        remove_bg = settings_by_name.get("remove_bg_api")
+        if rembg and simple and remove_bg:
+            # Migrate only untouched legacy defaults.
+            if rembg.priority == 5 and simple.priority == 1 and remove_bg.priority == 20:
+                rembg.priority = 1
+                simple.priority = 10
                 changed = True
         if changed:
             # pydantic validation roundtrip
@@ -126,7 +137,15 @@ class ProviderRegistry:
         key.last_error = error
         key.cooldown_until = datetime.utcnow() + timedelta(seconds=90)
 
-    def remove_background(self, image_bytes: bytes, *, model: str, provider_priority: list[str], allow_external: bool) -> ProviderExecution:
+    def remove_background(
+        self,
+        image_bytes: bytes,
+        *,
+        model: str,
+        quality_preset: str | None,
+        provider_priority: list[str],
+        allow_external: bool,
+    ) -> ProviderExecution:
         self.reload()
         allow_external = allow_external and (not self.settings.use_only_local)
         ordered = self._ordered_provider_settings(provider_priority)
@@ -138,7 +157,11 @@ class ProviderRegistry:
                 continue
             if provider.is_local:
                 try:
-                    result = provider.remove_background(image_bytes, model=model)
+                    result = provider.remove_background(
+                        image_bytes,
+                        model=model,
+                        quality_preset=quality_preset or self.settings.default_quality_preset,
+                    )
                     if allow_external and result.confidence < 0.45:
                         errors.append(f"{provider.name}: low confidence ({result.confidence:.2f}), trying fallback")
                         continue

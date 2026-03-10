@@ -20,5 +20,12 @@ class BackgroundRemovalProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def remove_background(self, image_bytes: bytes, *, model: Optional[str] = None, api_key: Optional[str] = None) -> ProviderResult:
+    def remove_background(
+        self,
+        image_bytes: bytes,
+        *,
+        model: Optional[str] = None,
+        quality_preset: Optional[str] = None,
+        api_key: Optional[str] = None,
+    ) -> ProviderResult:
         raise NotImplementedError

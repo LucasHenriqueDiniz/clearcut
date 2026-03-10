@@ -30,12 +30,19 @@ def main() -> int:
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
     DIST_DIR.mkdir(parents=True, exist_ok=True)
 
+    prepare_models_script = ROOT / "scripts" / "prepare-rembg-models.py"
+    run([sys.executable, str(prepare_models_script)])
+
+    sidecar_dir = DIST_DIR / "ipu-backend"
+    if sidecar_dir.exists():
+        shutil.rmtree(sidecar_dir, ignore_errors=True)
+
     run(
         [
             pyinstaller,
             "--noconfirm",
             "--clean",
-            "--onefile",
+            "--onedir",
             "--name",
             "ipu-backend",
             "--collect-all",
@@ -66,7 +73,7 @@ def main() -> int:
         ]
     )
 
-    target = DIST_DIR / EXECUTABLE_NAME
+    target = sidecar_dir / EXECUTABLE_NAME
     if not target.exists():
         raise SystemExit(f"Expected bundled backend executable not found: {target}")
 

@@ -55,9 +55,9 @@ export function Select({ value, options, onChange, className }: SelectProps) {
         type="button"
         onClick={() => setOpen((current) => !current)}
         className={cn(
-          "flex h-8 w-full items-center justify-between rounded-[9px] border border-[var(--border)] bg-black/20 px-[9px] text-[12px] text-[var(--text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition-[border-color,background-color,box-shadow]",
-          "hover:border-[var(--border-m)] hover:bg-white/[0.05]",
-          open && "rounded-b-none border-indigo-400/45 bg-indigo-500/[0.05] shadow-[0_0_0_1px_rgba(99,102,241,0.16),inset_0_1px_0_rgba(255,255,255,0.04)]",
+          "flex h-8 w-full items-center justify-between rounded-[9px] border border-[var(--border)] bg-[#141419] px-[9px] text-[12px] text-[var(--text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition-[border-color,background-color,box-shadow]",
+          "hover:border-[var(--border-m)] hover:bg-[#1a1a20]",
+          open && "rounded-b-none border-indigo-400/45 bg-[#1a1a22] shadow-[0_0_0_1px_rgba(99,102,241,0.16),inset_0_1px_0_rgba(255,255,255,0.04)]",
         )}
       >
         <span className="flex min-w-0 flex-1 items-center gap-[7px]">
@@ -73,7 +73,7 @@ export function Select({ value, options, onChange, className }: SelectProps) {
       </button>
 
       {open ? (
-        <div className="absolute left-0 right-0 top-full z-[80] overflow-hidden rounded-b-[11px] border border-[var(--border-m)] border-t-indigo-400/25 bg-[#15151b] shadow-[0_24px_48px_rgba(0,0,0,0.55)] animate-[dropIn_0.12s_ease]">
+        <div className="absolute left-0 right-0 top-full z-[30] overflow-hidden rounded-b-[11px] border border-[var(--border-m)] border-t-indigo-400/25 bg-[#171720] shadow-[0_24px_48px_rgba(0,0,0,0.62)] animate-[dropIn_0.12s_ease]">
           <div className="max-h-[220px] overflow-y-auto p-1">
             {groups.map(([group, groupOptions], groupIndex) => (
               <div key={group || `group-${groupIndex}`}>

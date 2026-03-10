@@ -103,7 +103,44 @@ fn dev_backend_root() -> PathBuf {
         .join("backend")
 }
 
-fn build_dev_command(backend_root: &Path, port: u16, paths: &RuntimePaths) -> Result<Command, String> {
+fn resolve_rembg_models_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let dev_candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("backend")
+        .join("models")
+        .join("rembg");
+    if dev_candidate.exists() {
+        return Ok(dev_candidate);
+    }
+
+    let packaged_candidates = [
+        app.path()
+            .resolve("backend/models/rembg", BaseDirectory::Resource)
+            .map_err(|err| err.to_string())?,
+        app.path()
+            .resolve("resources/backend/models/rembg", BaseDirectory::Resource)
+            .map_err(|err| err.to_string())?,
+    ];
+    packaged_candidates
+        .iter()
+        .find(|path| path.exists())
+        .cloned()
+        .ok_or_else(|| {
+            let checked = packaged_candidates
+                .iter()
+                .map(|path| format!(" - {}", path.display()))
+                .collect::<Vec<_>>()
+                .join("\n");
+            format!("Bundled rembg model directory not found. Checked:\n{checked}")
+        })
+}
+
+fn build_dev_command(
+    backend_root: &Path,
+    port: u16,
+    paths: &RuntimePaths,
+    rembg_models_dir: &Path,
+) -> Result<Command, String> {
     let venv_windows = backend_root.join(".venv").join("Scripts").join("python.exe");
     let venv_unix = backend_root.join(".venv").join("bin").join("python");
     let interpreter = if venv_windows.is_file() {
@@ -135,11 +172,16 @@ Run backend dependency install first: `cd backend && .venv\\\\Scripts\\\\python.
     let mut command = Command::new(interpreter);
     command.arg(script_path);
     command.current_dir(backend_root);
-    apply_backend_env(&mut command, port, paths);
+    apply_backend_env(&mut command, port, paths, rembg_models_dir);
     Ok(command)
 }
 
-fn build_packaged_command(app: &AppHandle, port: u16, paths: &RuntimePaths) -> Result<Command, String> {
+fn build_packaged_command(
+    app: &AppHandle,
+    port: u16,
+    paths: &RuntimePaths,
+    rembg_models_dir: &Path,
+) -> Result<Command, String> {
     let exe_name = if cfg!(target_os = "windows") {
         "ipu-backend.exe"
     } else {
@@ -148,7 +190,13 @@ fn build_packaged_command(app: &AppHandle, port: u16, paths: &RuntimePaths) -> R
 
     let candidates = [
         app.path()
+            .resolve(format!("backend/ipu-backend/{exe_name}"), BaseDirectory::Resource)
+            .map_err(|err| err.to_string())?,
+        app.path()
             .resolve(format!("backend/{exe_name}"), BaseDirectory::Resource)
+            .map_err(|err| err.to_string())?,
+        app.path()
+            .resolve(format!("resources/backend/ipu-backend/{exe_name}"), BaseDirectory::Resource)
             .map_err(|err| err.to_string())?,
         app.path()
             .resolve(format!("resources/backend/{exe_name}"), BaseDirectory::Resource)
@@ -172,17 +220,19 @@ fn build_packaged_command(app: &AppHandle, port: u16, paths: &RuntimePaths) -> R
         })?;
 
     let mut command = Command::new(backend_executable);
-    apply_backend_env(&mut command, port, paths);
+    apply_backend_env(&mut command, port, paths, rembg_models_dir);
     Ok(command)
 }
 
-fn apply_backend_env(command: &mut Command, port: u16, paths: &RuntimePaths) {
+fn apply_backend_env(command: &mut Command, port: u16, paths: &RuntimePaths, rembg_models_dir: &Path) {
     command.env("BACKEND_HOST", "127.0.0.1");
     command.env("BACKEND_PORT", port.to_string());
     command.env("DATA_DIR", &paths.data_dir);
     command.env("UPLOAD_DIR", &paths.upload_dir);
     command.env("OUTPUT_DIR", &paths.output_dir);
     command.env("MODELS_DIR", &paths.models_dir);
+    command.env("REMBG_MODELS_DIR", rembg_models_dir);
+    command.env("U2NET_HOME", rembg_models_dir);
     command.env("LOGS_DIR", &paths.logs_dir);
     command.env("RUNNING_IN_TAURI", "true");
     command.env("RUNNING_IN_DOCKER", "false");
@@ -231,6 +281,22 @@ fn read_log_tail(path: &Path, max_lines: usize) -> String {
     lines[start..].join("\n")
 }
 
+fn log_backend_event(paths: &RuntimePaths, message: &str) -> Result<(), String> {
+    let log_path = paths.logs_dir.join("backend-runtime.log");
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .map_err(|err| format!("Could not open backend runtime log: {err}"))?;
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    use std::io::Write;
+    writeln!(file, "[{ts}] {message}").map_err(|err| err.to_string())?;
+    Ok(())
+}
+
 fn ensure_backend(app: &AppHandle, state: &BackendRuntimeState) -> Result<DesktopRuntime, String> {
     if let Some(runtime) = state.runtime.lock().map_err(|err| err.to_string())?.clone() {
         return Ok(runtime);
@@ -239,14 +305,18 @@ fn ensure_backend(app: &AppHandle, state: &BackendRuntimeState) -> Result<Deskto
     let paths = runtime_paths(app)?;
     let port = allocate_port()?;
     let backend_url = format!("http://127.0.0.1:{port}");
+    let rembg_models_dir = resolve_rembg_models_dir(app)?;
+
+    let bootstrap_started = std::time::Instant::now();
 
     let mut command = if cfg!(debug_assertions) {
-        build_dev_command(&dev_backend_root(), port, &paths)?
+        build_dev_command(&dev_backend_root(), port, &paths, &rembg_models_dir)?
     } else {
-        build_packaged_command(app, port, &paths)?
+        build_packaged_command(app, port, &paths, &rembg_models_dir)?
     };
 
     let sidecar_log_path = paths.logs_dir.join("backend-sidecar.log");
+    let _ = log_backend_event(&paths, "Starting backend sidecar");
     let sidecar_log = fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -261,6 +331,7 @@ fn ensure_backend(app: &AppHandle, state: &BackendRuntimeState) -> Result<Deskto
     let mut child = command
         .spawn()
         .map_err(|err| format!("Failed to start backend: {err}"))?;
+    let pid = child.id();
 
     if let Err(error) = wait_for_health(&backend_url, &mut child, &sidecar_log_path) {
         let log_tail = read_log_tail(&sidecar_log_path, 30);
@@ -271,6 +342,14 @@ fn ensure_backend(app: &AppHandle, state: &BackendRuntimeState) -> Result<Deskto
         }
         return Err(format!("{error}\n\nLast backend log lines:\n{log_tail}"));
     }
+    let boot_ms = bootstrap_started.elapsed().as_millis();
+    log_backend_event(
+        &paths,
+        &format!(
+            "Backend healthy. pid={pid} url={backend_url} boot_ms={boot_ms} rembg_models_dir={}",
+            rembg_models_dir.display()
+        ),
+    )?;
 
     let runtime = DesktopRuntime {
         backend_url,
@@ -407,12 +486,42 @@ fn reveal_file_in_os(path: String) -> Result<(), String> {
 }
 
 fn shutdown_backend(state: &BackendRuntimeState) {
+    let paths = state
+        .runtime
+        .lock()
+        .ok()
+        .and_then(|rt| rt.as_ref().map(|runtime| RuntimePaths {
+            data_dir: PathBuf::from(&runtime.data_dir),
+            upload_dir: PathBuf::from(&runtime.upload_dir),
+            output_dir: PathBuf::from(&runtime.output_dir),
+            models_dir: PathBuf::from(&runtime.models_dir),
+            logs_dir: PathBuf::from(&runtime.logs_dir),
+        }));
+
     if let Ok(mut guard) = state.child.lock() {
         if let Some(child) = guard.as_mut() {
+            let pid = child.id();
+            if let Some(paths) = paths.as_ref() {
+                let _ = log_backend_event(paths, &format!("Shutting down backend pid={pid}"));
+            }
+
+            #[cfg(target_os = "windows")]
+            {
+                let status = Command::new("taskkill")
+                    .args(["/PID", &pid.to_string(), "/T", "/F"])
+                    .status();
+                if let (Some(paths), Ok(status)) = (paths.as_ref(), status) {
+                    let _ = log_backend_event(paths, &format!("taskkill /PID {pid} /T /F -> {status}"));
+                }
+            }
+
             let _ = child.kill();
             let _ = child.wait();
         }
         *guard = None;
+    }
+    if let Ok(mut rt) = state.runtime.lock() {
+        *rt = None;
     }
 }
 

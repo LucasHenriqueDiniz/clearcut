@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 from pydantic import BaseModel, Field
 
 
@@ -27,6 +27,7 @@ class ProviderSettingsItem(BaseModel):
 
 class ProviderSettingsPayload(BaseModel):
     use_only_local: bool = False
+    default_quality_preset: Literal["fast", "balanced", "hq"] = "balanced"
     providers: list[ProviderSettingsItem] = Field(default_factory=list)
 
 

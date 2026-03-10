@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     upload_dir: Path = Path("./uploads")
     output_dir: Path = Path("./outputs")
     models_dir: Path = Path("./models")
+    rembg_models_dir: Path = Path("./models/rembg")
     logs_dir: Path = Path("./logs")
     provider_settings_encrypt: bool = False
     provider_settings_key: str = ""

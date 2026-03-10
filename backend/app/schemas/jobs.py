@@ -17,10 +17,16 @@ class UploadItem(BaseModel):
 
 
 class ProcessingOptions(BaseModel):
+    workflow_mode: Literal["cutout_only", "enhance_only", "cutout_enhance"] = "cutout_only"
+    processing_order: Optional[Literal["cutout_then_enhance", "enhance_then_cutout"]] = "cutout_then_enhance"
     preset: str = "quick_cutout"
-    provider_priority: list[str] = Field(default_factory=lambda: ["simple_cv_local", "rembg_local", "remove_bg_api"])
+    provider_priority: list[str] = Field(default_factory=lambda: ["rembg_local", "simple_cv_local", "remove_bg_api"])
     remove_background: bool = True
-    local_model: str = "u2net"
+    local_model: str = "u2netp"
+    local_quality_preset: Optional[Literal["fast", "balanced", "hq"]] = None
+    enhance_level: Literal["off", "2x", "4x"] = "off"
+    enhance_engine: Literal["realesrgan"] = "realesrgan"
+    enhance_model: Optional[str] = None
     fallback_to_api: bool = True
     trim_transparent_bounds: bool = True
     padding: int = 0

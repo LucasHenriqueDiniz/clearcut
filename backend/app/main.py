@@ -2,6 +2,7 @@ from pathlib import Path
 from fastapi import FastAPI
 import logging
 import threading
+import time
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -12,7 +13,8 @@ from app.api.routes_fs import router as fs_router
 from app.api.routes_providers import router as providers_router
 from app.core.config import settings
 from app.core.logging import setup_logging
-from app.providers.local_rembg import prewarm_rembg_session
+from app.providers.local_rembg import model_for_quality_preset, prewarm_rembg_model
+from app.storage.provider_settings import provider_settings_store
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -49,9 +51,20 @@ if settings.output_dir.exists():
 @app.on_event("startup")
 def warmup_models() -> None:
     def _warm() -> None:
+        started = time.perf_counter()
         try:
-            prewarm_rembg_session("u2net")
-            logger.info("Rembg model warmed up.")
+            default_preset = provider_settings_store.load().default_quality_preset
+            warmup_preset = "fast"
+            model_name = model_for_quality_preset(warmup_preset)
+            prewarm_rembg_model(model_name)
+            elapsed_ms = int((time.perf_counter() - started) * 1000)
+            logger.info(
+                "Rembg model warmed up (%s, preset=%s, default_preset=%s) in %sms.",
+                model_name,
+                warmup_preset,
+                default_preset,
+                elapsed_ms,
+            )
         except Exception as exc:
             logger.warning("Rembg warmup failed: %s", exc)
 

@@ -11,6 +11,14 @@
     "core:window:allow-maximize",
     "core:window:allow-unmaximize",
     "dialog:default",
-    "fs:default"
+    "fs:default",
+    "fs:allow-read-file",
+    "fs:allow-write-file",
+    "fs:scope-home-recursive",
+    "fs:scope-desktop-recursive",
+    "fs:scope-document-recursive",
+    "fs:scope-download-recursive",
+    "fs:scope-public-recursive",
+    "fs:scope-temp-recursive"
   ]
 }

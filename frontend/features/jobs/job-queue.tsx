@@ -22,9 +22,11 @@ type Props = {
   onPaste: () => void;
   onSaveAll?: () => void;
   onDownloadZip?: () => void;
+  onDownloadItem?: (item: UploadItem) => void;
   onCancelJob?: () => void;
   refineUploadId?: string;
   isDropActive?: boolean;
+  engineStarting?: boolean;
   className?: string;
   uploading?: boolean;
 };
@@ -144,9 +146,11 @@ export function JobQueue({
   onPaste,
   onSaveAll,
   onDownloadZip,
+  onDownloadItem,
   onCancelJob,
   refineUploadId,
   isDropActive,
+  engineStarting,
   className,
   uploading,
 }: Props) {
@@ -190,6 +194,15 @@ export function JobQueue({
                 <div>
                   <p className="text-sm font-medium text-[var(--text)]">Uploading files...</p>
                   <p className="text-xs text-[var(--muted)]">You can keep dropping more files.</p>
+                </div>
+              </div>
+            ) : null}
+            {engineStarting ? (
+              <div className="mx-auto mt-3 flex w-full max-w-sm items-center justify-center gap-3 rounded-[11px] border border-indigo-400/20 bg-indigo-500/[0.08] px-4 py-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-200" />
+                <div>
+                  <p className="text-[12px] font-medium text-zinc-100">Engine starting</p>
+                  <p className="text-[11px] text-zinc-400">Preparing local model for first run.</p>
                 </div>
               </div>
             ) : null}
@@ -322,6 +335,16 @@ export function JobQueue({
                   </div>
 
                   <div className="flex shrink-0 items-center gap-1.5">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Download output"
+                      disabled={!outputThumbSrc}
+                      onClick={() => onDownloadItem?.(item)}
+                      className="border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.06]"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"

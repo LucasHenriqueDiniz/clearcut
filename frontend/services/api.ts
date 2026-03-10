@@ -12,6 +12,7 @@ import {
   openOutputFolderDesktop,
   revealFileDesktop,
   saveAllDesktop,
+  saveOutputDesktop,
   saveZipDesktop,
 } from "@/lib/platform";
 import { logEvent } from "@/lib/dev-log";
@@ -187,6 +188,15 @@ export async function saveZipOutput(jobId: string, suggestedName: string): Promi
 export async function getOutputDownloadUrl(path: string): Promise<string> {
   const apiUrl = await getBackendBaseUrl();
   return `${apiUrl}/jobs/download?path=${encodeURIComponent(path)}`;
+}
+
+export async function saveSingleOutput(path: string, suggestedName: string): Promise<{ canceled?: boolean; savedPath?: string }> {
+  const fileUrl = await getOutputDownloadUrl(path);
+  if (!isTauriEnvironment()) {
+    window.open(fileUrl, "_blank", "noopener,noreferrer");
+    return {};
+  }
+  return saveOutputDesktop(fileUrl, suggestedName);
 }
 
 export async function getProvidersStatus(): Promise<ProviderStatus[]> {

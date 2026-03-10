@@ -71,6 +71,18 @@ export async function getDesktopRuntime(): Promise<DesktopRuntime> {
   return runtimePromise;
 }
 
+export function preloadDesktopRuntime(): void {
+  if (!isTauriEnvironment()) return;
+  if (!runtimePromise) {
+    runtimePromise = import("@tauri-apps/api/core").then(({ invoke }) =>
+      invoke<DesktopRuntime>("bootstrap_backend").catch((error) => {
+        logEvent("error", "bootstrap_backend failed", error);
+        throw error;
+      }),
+    );
+  }
+}
+
 export async function getBackendBaseUrl(): Promise<string> {
   const runtime = await getDesktopRuntime();
   return runtime.backend_url;
@@ -188,6 +200,29 @@ export async function saveZipDesktop(zipUrl: string, suggestedName: string): Pro
   const response = await fetch(zipUrl);
   if (!response.ok) {
     throw new Error(`ZIP download failed: ${response.status}`);
+  }
+  const buffer = new Uint8Array(await response.arrayBuffer());
+  await writeFile(savePath, buffer);
+  return { savedPath: savePath };
+}
+
+export async function saveOutputDesktop(fileUrl: string, suggestedName: string): Promise<{ canceled?: boolean; savedPath?: string }> {
+  if (!isTauriEnvironment()) return {};
+
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  const savePath = await save({
+    title: "Save output",
+    defaultPath: suggestedName,
+  });
+
+  if (!savePath) {
+    return { canceled: true };
+  }
+
+  const { writeFile } = await import("@tauri-apps/plugin-fs");
+  const response = await fetch(fileUrl);
+  if (!response.ok) {
+    throw new Error(`Output download failed: ${response.status}`);
   }
   const buffer = new Uint8Array(await response.arrayBuffer());
   await writeFile(savePath, buffer);

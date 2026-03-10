@@ -1,4 +1,6 @@
 import json
+import logging
+import time
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -12,6 +14,7 @@ from app.schemas.jobs import JobFileResult, JobResponse, ProcessingOptions
 from app.storage.filesystem import storage
 from app.storage.history import history_store
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class JobStateData:
@@ -63,12 +66,16 @@ class JobService:
         total = len(job.files) or 1
         completed = 0
 
+        first_started: float | None = None
         for sequence_number, file_item in enumerate(job.files, start=1):
             if job.cancel_requested:
                 file_item.state = "canceled"
                 continue
             file_item.state = "processing"
             file_item.started_at = datetime.utcnow()
+            if sequence_number == 1:
+                logger.info("First file processing started (job=%s, model=%s)", job_id, job.options.local_model)
+                first_started = time.perf_counter()
             try:
                 result = processing_engine.process_file(
                     Path(file_item.input_path),
@@ -82,6 +89,9 @@ class JobService:
                 file_item.provider_used = result["provider_used"]
                 file_item.state = "done"
                 file_item.finished_at = datetime.utcnow()
+                if sequence_number == 1 and first_started is not None:
+                    elapsed_ms = int((time.perf_counter() - first_started) * 1000)
+                    logger.info("First file processing finished in %sms (job=%s)", elapsed_ms, job_id)
                 history_store.add(
                     {
                         "original_filename": Path(file_item.input_path).name,
@@ -99,6 +109,9 @@ class JobService:
                 file_item.state = "failed"
                 file_item.error_message = str(exc)
                 file_item.finished_at = datetime.utcnow()
+                if sequence_number == 1 and first_started is not None:
+                    elapsed_ms = int((time.perf_counter() - first_started) * 1000)
+                    logger.info("First file processing failed in %sms (job=%s)", elapsed_ms, job_id)
                 history_store.add(
                     {
                         "original_filename": Path(file_item.input_path).name,

@@ -33,6 +33,7 @@ export type ProviderSettingsItem = {
 
 export type ProviderSettingsPayload = {
   use_only_local: boolean;
+  default_quality_preset: "fast" | "balanced" | "hq";
   providers: ProviderSettingsItem[];
 };
 
@@ -50,10 +51,16 @@ export type UploadItem = {
 };
 
 export type ProcessingOptions = {
+  workflow_mode: "cutout_only" | "enhance_only" | "cutout_enhance";
+  processing_order?: "cutout_then_enhance" | "enhance_then_cutout" | null;
   preset: string;
   provider_priority: string[];
   remove_background: boolean;
   local_model: string;
+  local_quality_preset?: "fast" | "balanced" | "hq" | null;
+  enhance_level: "off" | "2x" | "4x";
+  enhance_engine: "realesrgan";
+  enhance_model?: string | null;
   fallback_to_api: boolean;
   trim_transparent_bounds: boolean;
   padding: number;

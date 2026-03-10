@@ -1,7 +1,7 @@
 import io
 import json
 from pathlib import Path
-from PIL import UnidentifiedImageError
+from PIL import Image, ImageFilter, UnidentifiedImageError
 from app.pipelines.steps import (
     apply_background,
     apply_alpha_threshold,
@@ -24,6 +24,50 @@ from app.utils.naming import resolve_output_name
 
 
 class ProcessingEngine:
+    @staticmethod
+    def _uses_cutout(options: ProcessingOptions) -> bool:
+        if options.workflow_mode == "enhance_only":
+            return False
+        if options.workflow_mode == "cutout_enhance":
+            return True
+        return options.remove_background
+
+    @staticmethod
+    def _uses_enhance(options: ProcessingOptions) -> bool:
+        if options.workflow_mode == "cutout_only":
+            return False
+        return options.enhance_level in {"2x", "4x"}
+
+    @staticmethod
+    def _enhance_image(ctx, options: ProcessingOptions):
+        factor = 2 if options.enhance_level == "2x" else 4
+        # Lightweight fallback enhancement path until external ESRGAN worker is integrated.
+        base_image = ctx.image
+        target_size = (max(1, base_image.width * factor), max(1, base_image.height * factor))
+        upscaled = base_image.resize(target_size, resample=Image.Resampling.LANCZOS)
+        upscaled = upscaled.filter(ImageFilter.UnsharpMask(radius=1.4, percent=120, threshold=2))
+        ctx.image = upscaled
+        if ctx.alpha_mask is not None:
+            ctx.alpha_mask = ctx.alpha_mask.resize(target_size, resample=Image.Resampling.LANCZOS)
+        return ctx
+
+    def _run_cutout(
+        self,
+        ctx,
+        options: ProcessingOptions,
+    ):
+        source_buffer = io.BytesIO()
+        ctx.image.save(source_buffer, format="PNG")
+        selected = provider_registry.remove_background(
+            source_buffer.getvalue(),
+            model=options.local_model,
+            quality_preset=options.local_quality_preset,
+            provider_priority=options.provider_priority,
+            allow_external=options.fallback_to_api,
+        )
+        ctx = decode_processed_bytes(ctx, selected.result.content)
+        return ctx, selected.result.engine_used, selected.result.provider_used, selected.via_api
+
     def process_file(
         self,
         image_path: Path,
@@ -39,33 +83,53 @@ class ProcessingEngine:
         ctx = normalize_orientation(ctx)
         original_name = image_path.stem
         source_image = ctx.image.copy()
+        cutout_enabled = self._uses_cutout(options)
+        enhance_enabled = self._uses_enhance(options)
+        processing_order = options.processing_order or "cutout_then_enhance"
+        if options.workflow_mode != "cutout_enhance":
+            processing_order = "cutout_then_enhance"
 
-        if options.remove_background:
-            source_buffer = io.BytesIO()
-            ctx.image.save(source_buffer, format="PNG")
-            selected = provider_registry.remove_background(
-                source_buffer.getvalue(),
-                model=options.local_model,
-                provider_priority=options.provider_priority,
-                allow_external=options.fallback_to_api,
-            )
-            ctx = decode_processed_bytes(ctx, selected.result.content)
-            engine_used = selected.result.engine_used
-            provider_used = selected.result.provider_used
-            used_external = selected.via_api
+        engine_parts: list[str] = []
+        provider_parts: list[str] = []
+        used_external = False
+
+        if processing_order == "enhance_then_cutout":
+            if enhance_enabled:
+                ctx = self._enhance_image(ctx, options)
+                engine_parts.append(f"enhance:{options.enhance_engine}:{options.enhance_level}")
+                provider_parts.append("enhance_local")
+            if cutout_enabled:
+                ctx, cutout_engine, cutout_provider, cutout_external = self._run_cutout(ctx, options)
+                engine_parts.append(cutout_engine)
+                provider_parts.append(cutout_provider)
+                used_external = used_external or cutout_external
         else:
+            if cutout_enabled:
+                ctx, cutout_engine, cutout_provider, cutout_external = self._run_cutout(ctx, options)
+                engine_parts.append(cutout_engine)
+                provider_parts.append(cutout_provider)
+                used_external = used_external or cutout_external
+            if enhance_enabled:
+                ctx = self._enhance_image(ctx, options)
+                engine_parts.append(f"enhance:{options.enhance_engine}:{options.enhance_level}")
+                provider_parts.append("enhance_local")
+
+        if not engine_parts:
             engine_used = "none"
             provider_used = "none"
-            used_external = False
+        else:
+            engine_used = "+".join(engine_parts)
+            provider_used = "+".join(provider_parts)
 
-        ctx = apply_alpha_threshold(ctx, options.alpha_threshold)
-        ctx = cleanup_white_halo(ctx, options.white_halo_cleanup)
-        ctx = apply_edge_feather(ctx, options.edge_feather_radius)
+        if cutout_enabled:
+            ctx = apply_alpha_threshold(ctx, options.alpha_threshold)
+            ctx = cleanup_white_halo(ctx, options.white_halo_cleanup)
+            ctx = apply_edge_feather(ctx, options.edge_feather_radius)
         if mask_hint_bytes:
             ctx = apply_mask_hint(ctx, mask_hint_bytes)
             ctx = enforce_locked_masks(ctx)
 
-        if options.trim_transparent_bounds:
+        if cutout_enabled and options.trim_transparent_bounds:
             ctx = trim_transparent_bounds(ctx)
         ctx = apply_padding(ctx, options.padding)
         resize_max_width = options.resize_max_width if options.resize_mode == "custom" else None

@@ -11,7 +11,14 @@ class RemoveBgApiProvider(BackgroundRemovalProvider):
         # remove.bg has no anonymous ping endpoint. Treat configured key test as runtime check.
         return True, None
 
-    def remove_background(self, image_bytes: bytes, *, model: str | None = None, api_key: str | None = None) -> ProviderResult:
+    def remove_background(
+        self,
+        image_bytes: bytes,
+        *,
+        model: str | None = None,
+        quality_preset: str | None = None,
+        api_key: str | None = None,
+    ) -> ProviderResult:
         if not api_key:
             raise RuntimeError("Missing remove.bg API key")
         response = requests.post(

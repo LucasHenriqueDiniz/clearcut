@@ -128,6 +128,26 @@ export function ProvidersSettings() {
             <span>Local only</span>
           </label>
         </div>
+        <div className="border-t border-white/[0.07] px-4 py-4">
+          <label className="app-shell-field-label">Default quality preset</label>
+          <Select
+            value={settings.default_quality_preset}
+            onChange={(value) =>
+              setSettings({
+                ...settings,
+                default_quality_preset: value as ProviderSettingsPayload["default_quality_preset"],
+              })
+            }
+            options={[
+              { value: "fast", label: "Fast", hint: "speed" },
+              { value: "balanced", label: "Balanced", hint: "default" },
+              { value: "hq", label: "HQ", hint: "best edges" },
+            ]}
+          />
+          <p className="mt-2 text-[11px] text-zinc-500">
+            Used by rembg_local unless a job-specific override is selected in General.
+          </p>
+        </div>
       </Card>
 
       {/* Provider cards */}

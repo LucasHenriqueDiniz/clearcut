@@ -14,10 +14,12 @@ import { DevConsole } from "@/components/dev-console";
 import { AppSidebar } from "@/components/app-sidebar";
 import { WindowTitlebar } from "@/components/window-titlebar";
 import {
+  getBackendBaseUrl,
   getDesktopPreviewSrc,
   listenDesktopFileDrops,
   pickFilePathsForUpload,
   pickFolderFilePathsForUpload,
+  preloadDesktopRuntime,
   useIsTauri,
 } from "@/lib/platform";
 import {
@@ -28,6 +30,7 @@ import {
   ingestDesktopPaths,
   openOutputFolder,
   saveAllOutputs,
+  saveSingleOutput,
   saveZipOutput,
   uploadFiles,
 } from "@/services/api";
@@ -85,6 +88,7 @@ export default function HomePage() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [devOpen, setDevOpen] = useState(false);
   const [closingBackend, setClosingBackend] = useState(false);
+  const [engineStarting, setEngineStarting] = useState(false);
 
   const [activeTab,    setActiveTab]    = useState<"workspace" | "providers" | "settings" | "history">("workspace");
   const [workspaceTab, setWorkspaceTab] = useState<"general" | "naming" | "templates">("general");
@@ -197,6 +201,29 @@ export default function HomePage() {
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
   }, [uploads]);
+
+  useEffect(() => {
+    if (!isDesktopMode) return;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      if (active) setEngineStarting(true);
+    }, 800);
+
+    preloadDesktopRuntime();
+    void getBackendBaseUrl()
+      .then(() => {
+        if (active) setEngineStarting(false);
+      })
+      .catch(() => {
+        if (active) setEngineStarting(false);
+      })
+      .finally(() => window.clearTimeout(timer));
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [isDesktopMode]);
 
   useEffect(() => {
     if (!isDesktopMode) return;
@@ -585,6 +612,19 @@ export default function HomePage() {
     }
   };
 
+  const handleDownloadItem = async (item: UploadItem) => {
+    const result = resultByInput[item.path];
+    if (!result?.output_path) {
+      pushToast("Output not ready", "This item has no generated output yet.", "info");
+      return;
+    }
+    try {
+      await saveSingleOutput(result.output_path, result.output_filename || item.filename);
+    } catch (error) {
+      pushToast("Download failed", String(error), "error");
+    }
+  };
+
   return (
     <>
       <div className="flex h-screen w-screen min-h-0 min-w-0 overflow-hidden">
@@ -655,6 +695,7 @@ export default function HomePage() {
                   className="h-full"
                   uploads={uploads}
                   uploading={uploading}
+                  engineStarting={engineStarting}
                   currentJob={currentJob}
                   resultByInput={resultByInput}
                   onRemove={removeUpload}
@@ -665,6 +706,7 @@ export default function HomePage() {
                   onPaste={() => void pasteImage()}
                   onSaveAll={() => void handleSaveAll()}
                   onDownloadZip={() => void handleDownloadZip()}
+                  onDownloadItem={(item) => void handleDownloadItem(item)}
                   onCancelJob={() => {
                     if (!currentJob) return;
                     void cancelJob(currentJob.job_id);
