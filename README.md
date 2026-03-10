@@ -1,362 +1,315 @@
-# ClearCut (Local-First MVP + Tauri Shell)
+<p align="center">
+  <img src=".github/workflows/assets/banner.png" alt="ClearCut banner" width="100%" />
+</p>
 
-Functional prototype focused on fast image production workflows on desktop: batch background removal, format conversion, trim/crop, presets, provider fallback, history, and organized outputs.
+<h1 align="center">ClearCut</h1>
 
-## Stack
-- Frontend: Next.js 15 (App Router), TypeScript, Tailwind, Zustand, Framer Motion, Lucide
-- Backend: FastAPI (Python), Pillow, rembg
-- Desktop shell: Tauri 2 + Rust bootstrap + Python sidecar
+<p align="center">
+  Local-first desktop app for background removal, batch export, format conversion, masking, naming rules, and fast image workflows.
+</p>
 
-## What is implemented
-- Drag and drop multi-file upload
-- File picker + folder picker + clipboard paste
-- Input validation + corrupted image detection
-- Batch queue with states: `queued`, `processing`, `done`, `failed`, `canceled`
-- Real local background removal (`rembg`) with local model selection
-- External provider adapter implemented: `remove.bg` (optional API fallback)
-- Provider registry with:
-  - common interface
-  - priority ordering
-  - multiple keys per provider
-  - key rotation
-  - cooldown on failures/rate limits
-  - provider status and connection test endpoint
-- Modular processing pipeline steps:
-  - read image
-  - normalize EXIF orientation
-  - remove background
-  - trim transparent bounds
-  - optional padding
-  - optional resize
-  - optional solid background replacement
-  - export with quality settings
-  - optional alpha mask output
-- Presets:
-  - Quick cutout
-  - Product image
-  - Portrait
-  - Anime/art
-  - Convert only
-  - Remove bg + trim + webp
-- Organized output structure in `backend/outputs`:
-  - `png/`, `webp/`, `jpg/`, `masks/`, `tmp/`, `zips/`, `logs/`
-- Download by file and ZIP by job
-- History persisted in local SQLite (`backend/data/history.db`)
-- Settings page for providers and API keys (no hardcoded keys)
-- "Reveal in folder" and "Open output folder" actions
-- Tauri 2 shell with:
-  - backend bootstrap on a dynamic localhost port
-  - desktop runtime directories under app data
-  - native file picker and folder picker
-  - native `Save all` copy-to-folder flow
-  - native `Open output folder` and `Reveal file`
-  - packaged backend sidecar build script
+<p align="center">
+  <a href="https://github.com/LucasHenriqueDiniz/clearcut/releases/latest">
+    <img src="https://img.shields.io/github/v/release/LucasHenriqueDiniz/clearcut?display_name=release&style=for-the-badge&logo=github" alt="Latest release" />
+  </a>
+  <img src="https://img.shields.io/badge/Tauri-2.x-24C8D8?style=for-the-badge&logo=tauri&logoColor=white" alt="Tauri 2" />
+  <img src="https://img.shields.io/badge/Next.js-15-111111?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js 15" />
+  <img src="https://img.shields.io/badge/FastAPI-Python-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI Python" />
+  <img src="https://img.shields.io/badge/Desktop-Windows%20first-2d2d38?style=for-the-badge" alt="Desktop first" />
+</p>
 
-## Project structure
+<p align="center">
+  <a href="https://github.com/LucasHenriqueDiniz/clearcut/releases/latest">
+    <img src="https://img.shields.io/badge/Download-Latest%20Release-6366F1?style=for-the-badge&logo=github&logoColor=white" alt="Download latest release" />
+  </a>
+  <a href="https://github.com/LucasHenriqueDiniz/clearcut/releases">
+    <img src="https://img.shields.io/badge/View-All%20Releases-16161A?style=for-the-badge&logo=github&logoColor=white" alt="View all releases" />
+  </a>
+</p>
+
+<p align="center">
+  <img src=".github/workflows/assets/idle.png" alt="ClearCut app preview" width="100%" />
+</p>
+
+## Overview
+
+ClearCut is a desktop-first image production tool built for high-volume workflows.
+
+It focuses on:
+
+- background removal
+- local-first processing
+- batch queues
+- mask refinement
+- image conversion
+- export presets
+- naming automation
+- provider fallback
+
+The app runs inside a Tauri shell, uses a Next.js frontend, and starts a FastAPI backend sidecar automatically.
+
+## Highlights
+
+- Native desktop file import:
+  - file picker
+  - folder picker
+  - drag and drop
+  - clipboard paste
+- Batch queue with per-file states:
+  - `queued`
+  - `processing`
+  - `done`
+  - `failed`
+  - `canceled`
+- Local background removal with model selection
+- Optional external provider fallback
+- Mask refinement editor
+- Output controls:
+  - PNG / WebP / JPEG / AVIF
+  - quality
+  - keep size or custom size
+  - aspect ratio expansion
+  - background replacement
+- Naming controls:
+  - keep original
+  - pattern-based naming
+  - OCR text naming with Tesseract
+- Save all outputs to a chosen folder
+- Save job result as ZIP
+- History tracking
+- Provider settings and API key management
+
+## Download
+
+For normal users, the safest permanent button is:
+
+```text
+https://github.com/LucasHenriqueDiniz/clearcut/releases/latest
+```
+
+That always resolves to the latest release page.
+
+### Direct latest installer URL
+
+If you want a direct `latest` download link, the asset name must stay stable across releases.
+
+Good:
+
+```text
+https://github.com/LucasHenriqueDiniz/clearcut/releases/latest/download/ClearCut_x64-setup.exe
+```
+
+Risky:
+
+```text
+https://github.com/LucasHenriqueDiniz/clearcut/releases/latest/download/ClearCut_0.1.0_x64-setup.exe
+```
+
+The second form breaks as soon as the version changes in the filename.
+
+### About SHA-256
+
+Use the SHA-256 value for integrity verification, not as the download target.
+
+Example:
+
+```text
+sha256:54d3f83fd156ff5b3352621194449b6b9b2898c7cad15d81bcb9d1183752b8f9
+```
+
+That is useful for:
+
+- release notes
+- installer verification
+- CI artifacts
+
+It is not a replacement for the actual download URL.
+
+## Tech Stack
+
+- Frontend:
+  - Next.js 15
+  - React 19
+  - TypeScript
+  - Tailwind CSS
+  - Zustand
+  - Framer Motion
+- Desktop shell:
+  - Tauri 2
+  - Rust bootstrap
+- Backend:
+  - FastAPI
+  - Pillow
+  - rembg
+  - pytesseract
+
+## Runtime Architecture
+
+ClearCut is not a pure web app wrapped in desktop chrome.
+
+The intended flow is:
+
+1. Desktop file paths are selected natively
+2. The frontend keeps UI state and previews
+3. The backend processes images from disk
+4. Outputs are written to structured runtime folders
+5. The app exposes native actions like:
+   - open output folder
+   - reveal file
+   - save all
+   - save as ZIP
+
+## Project Structure
 
 ```text
 backend/
   app/
     api/
     core/
+    pipelines/
+    providers/
     schemas/
     services/
-    providers/
-    pipelines/
     storage/
-    workers/
     utils/
+    workers/
   data/
-  uploads/
   outputs/
+  uploads/
+
 frontend/
   app/
   components/
   features/
-    uploads/
+    history/
     jobs/
     previews/
     settings/
-    history/
-  stores/
+    uploads/
   lib/
-  hooks/
-  types/
   services/
+  stores/
+  types/
+
 src-tauri/
-  src/
   capabilities/
   resources/
+  src/
+
 scripts/
 ```
 
-## Setup Modes
+## Development
 
-### 1) Desktop app with Tauri (recommended for real daily use)
+### Prerequisites
 
-This is now the primary desktop path. The Tauri shell starts the FastAPI backend automatically and keeps runtime data outside the repo.
-
-Desktop runtime directories:
-- Windows: `%APPDATA%\\com.local.clearcut\\`
-- Tauri runtime subfolders:
-  - `data`
-  - `uploads`
-  - `outputs`
-  - `models`
-  - `logs`
-
-### Tauri prerequisites
 - Node.js 20+
 - Rust toolchain
 - Python 3.12 or 3.13
-- Backend dependencies installed in `backend/.venv`
 
-Windows setup:
+### Backend setup
+
+Windows:
 
 ```bash
 cd backend
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-
-cd ..\frontend
-npm install
 ```
 
-WSL / Linux / macOS setup:
+Linux / macOS / WSL:
 
 ```bash
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+```
 
-cd ../frontend
+### Frontend setup
+
+```bash
+cd frontend
 npm install
 ```
 
-Run desktop app in development:
+### Run the desktop app
 
 ```bash
 cd frontend
 npm run tauri:dev
 ```
 
-or from repo root:
+Or from repo root:
 
 ```bash
 make tauri-dev
 ```
 
-Windows helpers:
-- `scripts\\tauri-dev.bat`
-- `scripts\\build-backend-sidecar.bat`
-- `scripts\\tauri-build.bat`
+## Build
 
-WSL/Linux/macOS helpers:
-- `./scripts/tauri-dev.sh`
-- `./scripts/build-backend-sidecar.sh`
-- `./scripts/tauri-build.sh`
-
-Build packaged backend sidecar:
+### Build backend sidecar
 
 ```bash
 python scripts/build-backend-sidecar.py
 ```
 
-Build Windows installer:
+### Build desktop installer
 
 ```bash
 cd frontend
 npm run tauri:build
 ```
 
-or:
+Or:
 
 ```bash
 make backend-sidecar
 make tauri-build
 ```
 
-Notes:
-- `tauri dev` uses `backend/.venv` if available.
-- Packaged builds expect the PyInstaller sidecar in `src-tauri/resources/backend/`.
-- The frontend is exported statically for the Tauri bundle.
+## Docker
 
-### 2) Docker (isolated web stack)
-
-### 0) Prerequisites
-- Docker Desktop installed
-- WSL2 backend enabled in Docker Desktop (recommended on Windows)
-
-### 1) Run with Docker (isolated app runtime)
-
-All app runtime files are isolated under:
-- `runtime/backend/data`
-- `runtime/backend/uploads`
-- `runtime/backend/outputs`
-- `runtime/backend/models`
-
-Start:
+If you want the web stack isolated in containers:
 
 ```bash
 docker compose up -d --build
 ```
 
-or:
+Frontend:
 
-```bash
-make up
+```text
+http://localhost:3000
 ```
 
-or:
-- Windows: `scripts\\docker-up.bat`
-- Linux/macOS/WSL: `./scripts/docker-up.sh`
+Backend docs:
 
-Stop:
-
-```bash
-docker compose down
+```text
+http://localhost:8000/docs
 ```
 
-or:
+## Release Notes Tip
 
-```bash
-make down
+For GitHub Releases, the cleanest setup is:
+
+- keep a stable installer filename for the latest direct-download button
+- publish the exact versioned asset too
+- include SHA-256 in release notes
+
+Recommended pair:
+
+```text
+ClearCut_x64-setup.exe
+ClearCut_0.1.0_x64-setup.exe
 ```
 
-or:
-- Windows: `scripts\\docker-down.bat`
-- Linux/macOS/WSL: `./scripts/docker-down.sh`
+Then your README button can always use:
 
-URLs:
-- Frontend: `http://localhost:3000`
-- Backend docs: `http://localhost:8000/docs`
-
-Useful `make` commands:
-- `make help`
-- `make up`
-- `make down`
-- `make restart`
-- `make ps`
-- `make logs`
-- `make logs-backend`
-- `make logs-frontend`
-- `make clean`
-
-### 3) Plain web mode without Docker
-
-### 1) Environment files
-Copy `.env.example` values into:
-- `backend/.env`
-- `frontend/.env.local`
-
-Also available as templates:
-- `backend/.env.example`
-- `frontend/.env.example`
-
-### 2) Backend
-
-```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-python run.py
+```text
+https://github.com/LucasHenriqueDiniz/clearcut/releases/latest/download/ClearCut_x64-setup.exe
 ```
 
-For local Python install, use Python `3.12` or `3.13` to avoid package compatibility issues.
+## Status
 
-Backend docs: `http://127.0.0.1:8000/docs`
-
-### 3) Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Frontend: `http://127.0.0.1:3000`
-
-### 4) One-command scripts
-- Linux/macOS: `./scripts/dev.sh`
-- Windows: `scripts\dev.bat`
-
-## Provider configuration
-Use UI: `Settings` tab.
-
-- Add API keys by provider (e.g., `remove_bg_api`)
-- Set key labels and priority
-- Enable/disable providers and keys
-- Toggle `use only local processing`
-- Click `Test connection`
-
-Web mode stores provider settings in `backend/data/providers.json`.
-
-Desktop mode stores provider settings under the Tauri `data` directory and encrypts them into `providers.secure.json` by default. This is a controlled encrypted-file fallback. If you want to supply your own key, set `PROVIDER_SETTINGS_KEY`.
-
-## API endpoints (real)
-- `POST /jobs/upload`
-- `POST /jobs`
-- `POST /jobs/batch`
-- `POST /jobs/single`
-- `GET /jobs/{job_id}`
-- `POST /jobs/{job_id}/cancel`
-- `GET /jobs/{job_id}/zip`
-- `GET /jobs/download?path=...`
-- `GET /providers/status`
-- `GET /providers/settings`
-- `POST /providers/settings`
-- `POST /providers/test/{provider_name}`
-- `GET /history`
-- `DELETE /history/{item_id}`
-- `POST /fs/reveal?path=...`
-- `POST /fs/open-output`
-
-## How to add new providers
-1. Create provider adapter in `backend/app/providers/<name>.py` implementing `BackgroundRemovalProvider`.
-2. Implement:
-   - `health()`
-   - `remove_background(image_bytes, model, api_key)`
-3. Register provider in `ProviderRegistry` (`backend/app/providers/registry.py`).
-4. Add default settings (priority/enabled) in `_ensure_defaults()`.
-5. Provider automatically appears in Settings UI and can receive multiple keys.
-
-## Tauri runtime details
-- The frontend calls a platform adapter in `frontend/lib/platform.ts`.
-- In Tauri mode it asks Rust to:
-  - bootstrap the backend
-  - list image files in a selected folder
-  - copy exported files to a selected folder
-  - open or reveal files in the OS
-- The Rust shell starts the Python backend with:
-  - `BACKEND_HOST`
-  - `BACKEND_PORT`
-  - `DATA_DIR`
-  - `UPLOAD_DIR`
-  - `OUTPUT_DIR`
-  - `MODELS_DIR`
-  - `LOGS_DIR`
-  - `RUNNING_IN_TAURI=true`
-
-## Release flow
-1. Install backend dependencies in `backend/.venv`.
-2. Install frontend dependencies in `frontend/node_modules`.
-3. Bundle the backend sidecar with PyInstaller.
-4. Build the Tauri app.
-5. Distribute the generated NSIS installer.
-
-Typical commands:
-
-```bash
-python scripts/build-backend-sidecar.py
-cd frontend
-npm run tauri:build
-```
-
-## Notes / known limitations in this MVP
-- AVIF/HEIC support depends on local Pillow/build codecs on your machine.
-- remove.bg key test is configuration-level and health-level; deep quota/account checks can be added with provider-specific endpoint calls.
-- The current desktop security model uses an encrypted local file for provider settings, not OS credential vault integration yet.
-- Watch-folder service is scaffolded (`backend/app/workers/watch_folder.py`) for future implementation.
+ClearCut is already usable as a real desktop workflow tool and is now focused on refinement, export ergonomics, provider polish, and packaging quality.

@@ -37,7 +37,7 @@
       "resources/backend/**/*"
     ],
     "icon": [
-      "../frontend/public/favicon.ico",
+      "../frontend/public/icon.ico",
       "../frontend/public/icon.png"
     ]
   }

@@ -149,13 +149,18 @@ fn build_packaged_command(app: &AppHandle, port: u16, paths: &RuntimePaths) -> R
         "ipu-backend"
     };
 
-    let backend_executable = resource_dir.join("backend").join(exe_name);
-    if !backend_executable.exists() {
+    let primary_executable = resource_dir.join("backend").join(exe_name);
+    let fallback_executable = resource_dir.join(exe_name);
+    let backend_executable = if primary_executable.exists() {
+        primary_executable
+    } else if fallback_executable.exists() {
+        fallback_executable
+    } else {
         return Err(format!(
             "Packaged backend sidecar not found at {}",
-            backend_executable.display()
+            primary_executable.display()
         ));
-    }
+    };
 
     let mut command = Command::new(backend_executable);
     apply_backend_env(&mut command, port, paths);
