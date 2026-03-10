@@ -22,10 +22,6 @@
 </p>
 
 <p align="center">
-  This button always redirects correctly to the latest GitHub release page.
-</p>
-
-<p align="center">
   <img src=".github/workflows/assets/idle.png" alt="ClearCut app screenshot" width="100%" />
 </p>
 
@@ -67,32 +63,6 @@ Main use cases:
 - Save all outputs
 - Save as ZIP
 - History and provider settings
-
-## Download strategy
-
-If you want a README button that always works, use:
-
-```text
-https://github.com/LucasHenriqueDiniz/clearcut/releases/latest
-```
-
-That is the correct permanent redirect.
-
-If you want a direct installer URL, the asset name must stay stable across releases.
-
-Good:
-
-```text
-https://github.com/LucasHenriqueDiniz/clearcut/releases/latest/download/ClearCut_x64-setup.exe
-```
-
-Not stable:
-
-```text
-https://github.com/LucasHenriqueDiniz/clearcut/releases/latest/download/ClearCut_0.1.0_x64-setup.exe
-```
-
-The SHA-256 value is only for verification. It is not a download URL.
 
 ## Stack
 
