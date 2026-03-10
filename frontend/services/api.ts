@@ -17,6 +17,7 @@ import {
 
 const UPLOAD_CHUNK_SIZE = 12;
 const UPLOAD_RETRIES = 5;
+const REQUEST_RETRIES = 5;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -33,24 +34,37 @@ function describeError(error: unknown): string {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const apiUrl = await getBackendBaseUrl();
-  const res = await fetch(`${apiUrl}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-    cache: "no-store",
-  });
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= REQUEST_RETRIES; attempt += 1) {
+    try {
+      const apiUrl = await getBackendBaseUrl();
+      const res = await fetch(`${apiUrl}${path}`, {
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          ...(init?.headers ?? {}),
+        },
+        cache: "no-store",
+      });
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `Request failed: ${res.status}`);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Request failed: ${res.status}`);
+      }
+      if (res.status === 204) {
+        return undefined as T;
+      }
+      return res.json() as Promise<T>;
+    } catch (error) {
+      lastError = error;
+      const shouldRetry = error instanceof TypeError;
+      if (!shouldRetry || attempt === REQUEST_RETRIES) {
+        throw error;
+      }
+      await sleep(Math.min(4000, 400 * attempt));
+    }
   }
-  if (res.status === 204) {
-    return undefined as T;
-  }
-  return res.json() as Promise<T>;
+  throw new Error(describeError(lastError));
 }
 
 export async function uploadFiles(files: File[]): Promise<UploadItem[]> {

@@ -346,8 +346,12 @@ fn reveal_path(path: &Path) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn bootstrap_backend(app: AppHandle, state: State<BackendRuntimeState>) -> Result<DesktopRuntime, String> {
-    ensure_backend(&app, &state)
+async fn bootstrap_backend(app: AppHandle, state: State<'_, BackendRuntimeState>) -> Result<DesktopRuntime, String> {
+    let app = app.clone();
+    let state = state.clone();
+    tauri::async_runtime::spawn_blocking(move || ensure_backend(&app, &state))
+        .await
+        .map_err(|err| err.to_string())?
 }
 
 #[tauri::command]
