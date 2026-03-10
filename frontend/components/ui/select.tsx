@@ -73,7 +73,7 @@ export function Select({ value, options, onChange, className }: SelectProps) {
       </button>
 
       {open ? (
-        <div className="absolute left-0 right-0 top-full z-[80] overflow-hidden rounded-b-[11px] border border-[var(--border-m)] border-t-indigo-400/25 bg-[rgba(28,28,33,0.92)] shadow-[0_24px_48px_rgba(0,0,0,0.45)] backdrop-blur-xl animate-[dropIn_0.12s_ease]">
+        <div className="absolute left-0 right-0 top-full z-[80] overflow-hidden rounded-b-[11px] border border-[var(--border-m)] border-t-indigo-400/25 bg-[#15151b] shadow-[0_24px_48px_rgba(0,0,0,0.55)] animate-[dropIn_0.12s_ease]">
           <div className="max-h-[220px] overflow-y-auto p-1">
             {groups.map(([group, groupOptions], groupIndex) => (
               <div key={group || `group-${groupIndex}`}>

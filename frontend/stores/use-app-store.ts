@@ -9,6 +9,7 @@ type AppState = {
   providerSettings?: ProviderSettingsPayload;
   activePreset: string;
   options: ProcessingOptions;
+  skipDuplicates: boolean;
   setUploads: (uploads: UploadItem[]) => void;
   addUploads: (uploads: UploadItem[]) => void;
   updateUpload: (uploadId: string, update: Partial<UploadItem>) => void;
@@ -19,6 +20,7 @@ type AppState = {
   setProviderSettings: (settings: ProviderSettingsPayload) => void;
   setActivePreset: (preset: string) => void;
   setOptions: (options: Partial<ProcessingOptions>) => void;
+  setSkipDuplicates: (value: boolean) => void;
   resetQueue: () => void;
 };
 
@@ -59,13 +61,29 @@ export const useAppStore = create<AppState>((set) => ({
   providerSettings: undefined,
   activePreset: "quick_cutout",
   options: baseOptions,
+  skipDuplicates: true,
   setUploads: (uploads) => set({ uploads }),
-  addUploads: (uploads) => set((state) => ({ uploads: [...state.uploads, ...uploads] })),
+  addUploads: (uploads) =>
+    set((state) => {
+      const nextResultByInput = { ...state.resultByInput };
+      for (const item of uploads) {
+        delete nextResultByInput[item.path];
+      }
+      return { uploads: [...state.uploads, ...uploads], resultByInput: nextResultByInput };
+    }),
   updateUpload: (uploadId, update) =>
     set((state) => ({
       uploads: state.uploads.map((item) => (item.upload_id === uploadId ? { ...item, ...update } : item)),
     })),
-  removeUpload: (uploadId) => set((state) => ({ uploads: state.uploads.filter((x) => x.upload_id !== uploadId) })),
+  removeUpload: (uploadId) =>
+    set((state) => {
+      const item = state.uploads.find((x) => x.upload_id === uploadId);
+      const nextResultByInput = { ...state.resultByInput };
+      if (item) {
+        delete nextResultByInput[item.path];
+      }
+      return { uploads: state.uploads.filter((x) => x.upload_id !== uploadId), resultByInput: nextResultByInput };
+    }),
   setCurrentJob: (currentJob) => set({ currentJob }),
   mergeJobResults: (job) =>
     set((state) => ({
@@ -78,6 +96,7 @@ export const useAppStore = create<AppState>((set) => ({
   setProviderSettings: (providerSettings) => set({ providerSettings }),
   setActivePreset: (activePreset) => set({ activePreset }),
   setOptions: (partial) => set((state) => ({ options: { ...state.options, ...partial } })),
+  setSkipDuplicates: (skipDuplicates) => set({ skipDuplicates }),
   resetQueue: () => set({ uploads: [], currentJob: undefined, resultByInput: {} }),
 }));
 

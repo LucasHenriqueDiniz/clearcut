@@ -10,6 +10,10 @@ def get_rembg_session(model_name: str):
     return new_session(model_name)
 
 
+def prewarm_rembg_session(model_name: str = "u2net") -> None:
+    get_rembg_session(model_name)
+
+
 class RembgLocalProvider(BackgroundRemovalProvider):
     name = "rembg_local"
     is_local = True

@@ -14,6 +14,7 @@ import {
   saveAllDesktop,
   saveZipDesktop,
 } from "@/lib/platform";
+import { logEvent } from "@/lib/dev-log";
 
 const UPLOAD_CHUNK_SIZE = 12;
 const UPLOAD_RETRIES = 5;
@@ -57,8 +58,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       return res.json() as Promise<T>;
     } catch (error) {
       lastError = error;
+      logEvent("warn", `request failed (attempt ${attempt})`, `${path} :: ${describeError(error)}`);
       const shouldRetry = error instanceof TypeError;
       if (!shouldRetry || attempt === REQUEST_RETRIES) {
+        logEvent("error", "request failed", `${path} :: ${describeError(error)}`);
         throw error;
       }
       await sleep(Math.min(4000, 400 * attempt));
@@ -98,6 +101,7 @@ export async function uploadFiles(files: File[]): Promise<UploadItem[]> {
         }
       } catch (error) {
         lastError = error;
+        logEvent("warn", `upload failed (attempt ${attempt})`, `${chunk[0]?.name ?? "file"} :: ${describeError(error)}`);
         if (attempt < maxAttempts) {
           await sleep(Math.min(5000, 900 * attempt));
         }

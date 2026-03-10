@@ -5,13 +5,17 @@
   "identifier": "com.local.clearcut",
   "build": {
     "beforeDevCommand": "cd ../frontend && npm run dev",
-    "beforeBuildCommand": "cd ../frontend && npm run build",
+    "beforeBuildCommand": "python ../scripts/build-backend-sidecar.py && cd ../frontend && npm run build",
     "devUrl": "http://localhost:3000",
     "frontendDist": "../frontend/out"
   },
   "app": {
     "security": {
-      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost blob: data:;",
+      "csp": {
+        "default-src": "'self' ipc: http://ipc.localhost",
+        "connect-src": "'self' ipc: http://ipc.localhost http://127.0.0.1:* http://localhost:*",
+        "img-src": "'self' asset: http://asset.localhost blob: data: http://127.0.0.1:* http://localhost:*"
+      },
       "assetProtocol": {
         "enable": true,
         "scope": ["**"]

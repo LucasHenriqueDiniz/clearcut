@@ -181,7 +181,7 @@ export function JobSettingsPanel({
   showLocalTabs = true,
   className,
 }: Props) {
-  const { options, setOptions, activePreset, setActivePreset } = useAppStore();
+  const { options, setOptions, activePreset, setActivePreset, skipDuplicates, setSkipDuplicates } = useAppStore();
   const [internalActiveTab, setInternalActiveTab] = useState<SettingsTab>("general");
   const [customPresets, setCustomPresets] = useState<SavedPreset[]>([]);
   const [customPresetName, setCustomPresetName] = useState("");
@@ -320,6 +320,13 @@ export function JobSettingsPanel({
                     onChange={(value) => setOptions({ aspect_ratio: value })}
                   />
                 </Field>
+                <div className="flex items-center justify-between rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                  <div>
+                    <p className="text-[12px] font-medium text-[var(--text)]">Skip duplicates</p>
+                    <p className="text-[11px] text-[var(--muted)]">Ignore files already in the current queue</p>
+                  </div>
+                  <Toggle checked={skipDuplicates} onChange={setSkipDuplicates} />
+                </div>
               </div>
             </CollapsibleSection>
 
@@ -340,7 +347,7 @@ export function JobSettingsPanel({
                         type="button"
                         onClick={() => setOptions({ background_color: color, background_mode: "solid" })}
                         className={cn(
-                          "h-[22px] w-[22px] rounded-[5px] border-2 border-transparent transition-transform hover:scale-105",
+                          "h-[22px] w-[22px] appearance-none rounded-[5px] border-2 border-transparent transition-transform hover:scale-105",
                           options.background_color.toLowerCase() === color.toLowerCase() && options.background_mode === "solid" && "border-white/60",
                         )}
                         style={{ backgroundColor: color }}
@@ -350,7 +357,7 @@ export function JobSettingsPanel({
                       type="button"
                       onClick={() => setOptions({ background_mode: "transparent" })}
                       className={cn(
-                        "h-[22px] w-[22px] rounded-[5px] border-2 border-transparent bg-[conic-gradient(#333_0%_25%,#1a1a1a_0%_50%)] bg-[length:8px_8px] transition-transform hover:scale-105",
+                        "h-[22px] w-[22px] appearance-none rounded-[5px] border-2 border-transparent bg-[conic-gradient(#333_0%_25%,#1a1a1a_0%_50%)] bg-[length:8px_8px] transition-transform hover:scale-105",
                         options.background_mode === "transparent" && "border-white/60",
                       )}
                     />

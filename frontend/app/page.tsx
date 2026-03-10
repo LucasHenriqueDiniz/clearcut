@@ -10,6 +10,7 @@ import { AppSettings } from "@/features/settings/app-settings";
 import { ProvidersSettings } from "@/features/settings/providers-settings";
 import { Button } from "@/components/ui";
 import { ToastItem, ToastStack } from "@/components/toast-stack";
+import { DevConsole } from "@/components/dev-console";
 import { AppSidebar } from "@/components/app-sidebar";
 import { WindowTitlebar } from "@/components/window-titlebar";
 import {
@@ -33,6 +34,7 @@ import {
 import { useAppStore } from "@/stores/use-app-store";
 import type { UploadItem } from "@/types";
 import { useBackendBaseUrl } from "@/lib/platform";
+import { logEvent } from "@/lib/dev-log";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const ACCEPTED_EXTENSIONS = new Set([
@@ -81,6 +83,8 @@ export default function HomePage() {
   const [uploading, setUploading] = useState(false);
   const [isDropActive, setIsDropActive] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [devOpen, setDevOpen] = useState(false);
+  const [closingBackend, setClosingBackend] = useState(false);
 
   const [activeTab,    setActiveTab]    = useState<"workspace" | "providers" | "settings" | "history">("workspace");
   const [workspaceTab, setWorkspaceTab] = useState<"general" | "naming" | "templates">("general");
@@ -88,6 +92,7 @@ export default function HomePage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const dragDepthRef = useRef(0);
   const blobPreviewUrlsRef = useRef<Set<string>>(new Set());
+  const keyBufferRef = useRef<string[]>([]);
   const isDesktopMode = useIsTauri();
   const outputBaseUrl = useBackendBaseUrl();
 
@@ -101,6 +106,7 @@ export default function HomePage() {
     currentJob,
     resultByInput,
     options,
+    skipDuplicates,
   } = useAppStore();
 
   const refineItem   = useMemo(() => uploads.find((u) => u.upload_id === refineUploadId), [refineUploadId, uploads]);
@@ -192,6 +198,26 @@ export default function HomePage() {
     return () => window.removeEventListener("paste", onPaste);
   }, [uploads]);
 
+  useEffect(() => {
+    if (!isDesktopMode) return;
+    let unlistenClosing: (() => void) | null = null;
+    let unlistenClosed: (() => void) | null = null;
+
+    void import("@tauri-apps/api/event").then(({ listen }) => {
+      listen("backend-closing", () => setClosingBackend(true)).then((unlisten) => {
+        unlistenClosing = unlisten;
+      });
+      listen("backend-closed", () => setClosingBackend(false)).then((unlisten) => {
+        unlistenClosed = unlisten;
+      });
+    });
+
+    return () => {
+      unlistenClosing?.();
+      unlistenClosed?.();
+    };
+  }, [isDesktopMode]);
+
   // ── Job polling ──────────────────────────────────────────────────────────
   const pollJob = async (jobId: string) => {
     const status = await getJob(jobId);
@@ -256,10 +282,36 @@ export default function HomePage() {
   const pushToast = (title: string, description?: string, variant: ToastItem["variant"] = "info") => {
     const id = crypto.randomUUID();
     setToasts((current) => [...current, { id, title, description, variant }]);
+    if (variant === "error") {
+      logEvent("error", title, description);
+    } else if (variant === "info") {
+      logEvent("info", title, description);
+    }
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
     }, 4200);
   };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "d") {
+        event.preventDefault();
+        setDevOpen((current) => !current);
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      if (key.length !== 1) return;
+      const buffer = keyBufferRef.current;
+      buffer.push(key);
+      if (buffer.length > 5) buffer.shift();
+      if (buffer.join("") === "debug") {
+        setDevOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // ── Upload handler ───────────────────────────────────────────────────────
   const handleFiles = async (files: File[]) => {
@@ -282,7 +334,9 @@ export default function HomePage() {
         return;
       }
 
-      const existing = new Set(uploads.map((u) => u.fingerprint).filter(Boolean));
+      const existing = new Set(
+        (skipDuplicates ? uploads.map((u) => u.fingerprint).filter(Boolean) : []),
+      );
       const unique: File[] = [], fps: string[] = [], skipped: string[] = [];
 
       for (const file of validFiles) {
@@ -310,7 +364,7 @@ export default function HomePage() {
       );
       pushToast(
         `Uploaded ${saved.length} file(s)`,
-        skipped.length ? `Skipped duplicates: ${skipped.join(", ")}` : undefined,
+        skipDuplicates && skipped.length ? `Skipped duplicates: ${skipped.join(", ")}` : undefined,
         "success",
       );
     } catch (e) {
@@ -337,7 +391,7 @@ export default function HomePage() {
       }
 
       const existing = new Set(
-        uploads
+        (skipDuplicates ? uploads : [])
           .filter((item) => item.storage_mode === "desktop_path")
           .map((item) => item.source_path || item.path)
           .filter(Boolean)
@@ -378,7 +432,7 @@ export default function HomePage() {
       addUploads(desktopItems);
       pushToast(
         `Ingested ${desktopItems.length} file(s)`,
-        skipped.length ? `Skipped duplicates: ${skipped.join(", ")}` : undefined,
+        skipDuplicates && skipped.length ? `Skipped duplicates: ${skipped.join(", ")}` : undefined,
         "success",
       );
     } catch (e) {
@@ -666,11 +720,25 @@ export default function HomePage() {
           </div>
         </div>
       )}
+      {closingBackend ? (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-[16px] border border-white/[0.08] bg-[#121217] px-6 py-5 shadow-[0_30px_80px_rgba(0,0,0,0.55)]">
+            <div className="flex items-center gap-3">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-200" />
+              <div>
+                <p className="text-[13px] font-semibold text-[var(--text)]">Closing backend…</p>
+                <p className="text-[11px] text-[var(--muted)]">Finishing background tasks, please wait.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <ToastStack
         toasts={toasts}
         onDismiss={(id) => setToasts((current) => current.filter((toast) => toast.id !== id))}
       />
+      <DevConsole open={devOpen} onClose={() => setDevOpen(false)} />
     </>
   );
 }

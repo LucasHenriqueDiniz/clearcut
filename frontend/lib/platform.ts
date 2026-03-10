@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { logEvent } from "@/lib/dev-log";
 
 type DesktopRuntime = {
   backend_url: string;
@@ -60,7 +61,10 @@ export async function getDesktopRuntime(): Promise<DesktopRuntime> {
 
   if (!runtimePromise) {
     runtimePromise = import("@tauri-apps/api/core").then(({ invoke }) =>
-      invoke<DesktopRuntime>("bootstrap_backend"),
+      invoke<DesktopRuntime>("bootstrap_backend").catch((error) => {
+        logEvent("error", "bootstrap_backend failed", error);
+        throw error;
+      }),
     );
   }
 

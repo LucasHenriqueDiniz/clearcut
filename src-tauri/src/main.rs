@@ -5,13 +5,13 @@ use std::{
     net::TcpListener,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
-    sync::Mutex,
+    sync::{atomic::{AtomicBool, Ordering}, Mutex},
     thread,
     time::Duration,
 };
 
 use serde::Serialize;
-use tauri::{path::BaseDirectory, AppHandle, Manager, State};
+use tauri::{path::BaseDirectory, AppHandle, Emitter, Manager, State};
 use walkdir::WalkDir;
 
 #[derive(Clone, Serialize)]
@@ -37,6 +37,7 @@ struct RuntimePaths {
 struct BackendRuntimeState {
     child: Mutex<Option<Child>>,
     runtime: Mutex<Option<DesktopRuntime>>,
+    closing: AtomicBool,
 }
 
 impl Default for BackendRuntimeState {
@@ -44,6 +45,7 @@ impl Default for BackendRuntimeState {
         Self {
             child: Mutex::new(None),
             runtime: Mutex::new(None),
+            closing: AtomicBool::new(false),
         }
     }
 }
@@ -345,13 +347,9 @@ fn reveal_path(path: &Path) -> Result<(), String> {
     }
 }
 
-#[tauri::command]
-async fn bootstrap_backend(app: AppHandle, state: State<'_, BackendRuntimeState>) -> Result<DesktopRuntime, String> {
-    let app = app.clone();
-    let state = state.clone();
-    tauri::async_runtime::spawn_blocking(move || ensure_backend(&app, &state))
-        .await
-        .map_err(|err| err.to_string())?
+#[tauri::command(async)]
+fn bootstrap_backend(app: AppHandle, state: State<'_, BackendRuntimeState>) -> Result<DesktopRuntime, String> {
+    ensure_backend(&app, state.inner())
 }
 
 #[tauri::command]
@@ -436,10 +434,35 @@ fn main() {
         .expect("failed to build tauri app");
 
     let app_handle = app.handle().clone();
-    app.run(move |_handle, event| {
-        if let tauri::RunEvent::Exit = event {
+    app.run(move |_handle, event| match event {
+        tauri::RunEvent::Exit => {
             let state = app_handle.state::<BackendRuntimeState>();
             shutdown_backend(&state);
         }
+        tauri::RunEvent::ExitRequested { .. } => {
+            let state = app_handle.state::<BackendRuntimeState>();
+            shutdown_backend(&state);
+        }
+        tauri::RunEvent::WindowEvent { event, .. } => {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let state = app_handle.state::<BackendRuntimeState>();
+                if state.closing.swap(true, Ordering::SeqCst) {
+                    api.prevent_close();
+                    return;
+                }
+
+                let _ = app_handle.emit("backend-closing", ());
+                api.prevent_close();
+
+                let app_handle = app_handle.clone();
+                tauri::async_runtime::spawn_blocking(move || {
+                    let state = app_handle.state::<BackendRuntimeState>();
+                    shutdown_backend(&state);
+                    let _ = app_handle.emit("backend-closed", ());
+                    app_handle.exit(0);
+                });
+            }
+        }
+        _ => {}
     });
 }
