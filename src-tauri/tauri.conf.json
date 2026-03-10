@@ -33,9 +33,9 @@
   "bundle": {
     "active": true,
     "targets": ["nsis", "appimage"],
-    "resources": [
-      "resources/backend/**/*"
-    ],
+    "resources": {
+      "resources/backend/": "backend/"
+    },
     "icon": [
       "../frontend/public/icon.ico",
       "../frontend/public/icon.png"

@@ -11,7 +11,7 @@ use std::{
 };
 
 use serde::Serialize;
-use tauri::{AppHandle, Manager, State};
+use tauri::{path::BaseDirectory, AppHandle, Manager, State};
 use walkdir::WalkDir;
 
 #[derive(Clone, Serialize)]
@@ -138,29 +138,36 @@ Run backend dependency install first: `cd backend && .venv\\\\Scripts\\\\python.
 }
 
 fn build_packaged_command(app: &AppHandle, port: u16, paths: &RuntimePaths) -> Result<Command, String> {
-    let resource_dir = app
-        .path()
-        .resource_dir()
-        .map_err(|err| err.to_string())?;
-
     let exe_name = if cfg!(target_os = "windows") {
         "ipu-backend.exe"
     } else {
         "ipu-backend"
     };
 
-    let primary_executable = resource_dir.join("backend").join(exe_name);
-    let fallback_executable = resource_dir.join(exe_name);
-    let backend_executable = if primary_executable.exists() {
-        primary_executable
-    } else if fallback_executable.exists() {
-        fallback_executable
-    } else {
-        return Err(format!(
-            "Packaged backend sidecar not found at {}",
-            primary_executable.display()
-        ));
-    };
+    let candidates = [
+        app.path()
+            .resolve(format!("backend/{exe_name}"), BaseDirectory::Resource)
+            .map_err(|err| err.to_string())?,
+        app.path()
+            .resolve(format!("resources/backend/{exe_name}"), BaseDirectory::Resource)
+            .map_err(|err| err.to_string())?,
+        app.path()
+            .resolve(exe_name, BaseDirectory::Resource)
+            .map_err(|err| err.to_string())?,
+    ];
+
+    let backend_executable = candidates
+        .iter()
+        .find(|path| path.exists())
+        .cloned()
+        .ok_or_else(|| {
+            let checked = candidates
+                .iter()
+                .map(|path| format!(" - {}", path.display()))
+                .collect::<Vec<_>>()
+                .join("\n");
+            format!("Packaged backend sidecar not found. Checked:\n{checked}")
+        })?;
 
     let mut command = Command::new(backend_executable);
     apply_backend_env(&mut command, port, paths);
