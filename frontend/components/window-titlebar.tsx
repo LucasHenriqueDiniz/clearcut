@@ -71,7 +71,7 @@ export function WindowTitlebar({ left, className, onMouseDown }: WindowTitlebarP
     >
       <div data-tauri-drag-region className="absolute inset-x-0 top-0 h-1.5" />
       <div data-tauri-drag-region className="h-full w-3 shrink-0" />
-      <div className="min-w-0 flex-1">{left}</div>
+      <div className="min-w-0 flex-1 h-full">{left}</div>
       <div data-tauri-drag-region className="h-full flex-1" />
       <div className="flex h-full items-center" data-titlebar-ignore-drag>
         <button

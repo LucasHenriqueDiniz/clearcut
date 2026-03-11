@@ -241,6 +241,7 @@ export function JobSettingsPanel({
   const [parallelWorkersEnabled, setParallelWorkersEnabled] = useState(true);
   const [workerCount, setWorkerCount] = useState(3);
   const [outputDirMode, setOutputDirMode] = useState("alongside");
+  const [hoveredTabTooltip, setHoveredTabTooltip] = useState<{ id: SettingsTab; x: number; y: number } | null>(null);
   const activeTab = controlledActiveTab ?? internalActiveTab;
   const setActiveTab = onActiveTabChange ?? setInternalActiveTab;
 
@@ -306,6 +307,9 @@ export function JobSettingsPanel({
   const isPngOutput = options.output_format === "png";
   const showResizeControls = options.resize_mode === "custom";
   const showQuickColors = options.background_mode === "solid";
+  const hoveredTabMeta = hoveredTabTooltip
+    ? workspaceTabs.find((tab) => tab.id === hoveredTabTooltip.id) ?? null
+    : null;
 
   return (
     <div className={cn("flex min-h-0 flex-col overflow-hidden border-r border-white/[0.08] bg-[#111114]", className)}>
@@ -332,16 +336,23 @@ export function JobSettingsPanel({
       {!showLocalTabs ? (
         <div className="border-b border-white/[0.07] bg-[#101013] px-3 py-2">
           <div className="flex items-center gap-1.5">
-            {workspaceTabs.map((tab, index) => {
+            {workspaceTabs.map((tab) => {
               const TabIcon = tab.icon;
-              const isLeftAnchored = index <= 1;
-              const isRightAnchored = index >= workspaceTabs.length - 2;
               return (
                 <div key={tab.id} className="group relative">
                   <button
                     type="button"
                     aria-label={tab.label}
                     onClick={() => setActiveTab(tab.id)}
+                    onMouseEnter={(event) => {
+                      const rect = event.currentTarget.getBoundingClientRect();
+                      const tooltipWidth = 168;
+                      const desiredX = rect.left + rect.width / 2 - tooltipWidth / 2;
+                      const clampedX = Math.max(8, Math.min(desiredX, window.innerWidth - tooltipWidth - 8));
+                      setHoveredTabTooltip({ id: tab.id, x: clampedX, y: rect.bottom + 7 });
+                    }}
+                    onMouseLeave={() => setHoveredTabTooltip((current) => (current?.id === tab.id ? null : current))}
+                    onBlur={() => setHoveredTabTooltip((current) => (current?.id === tab.id ? null : current))}
                     className={cn(
                       "flex h-7 w-7 items-center justify-center rounded-[7px] border transition-colors",
                       activeTab === tab.id
@@ -351,21 +362,19 @@ export function JobSettingsPanel({
                   >
                     <TabIcon className="h-3.5 w-3.5" />
                   </button>
-                  <div
-                    className={cn(
-                      "pointer-events-none absolute top-[calc(100%+7px)] z-40 w-[168px] rounded-[8px] border border-white/[0.08] bg-[#17171d] px-2 py-1 text-[10px] text-zinc-300 opacity-0 shadow-[0_10px_28px_rgba(0,0,0,0.45)] transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100",
-                      isLeftAnchored && "left-0",
-                      isRightAnchored && "right-0",
-                      !isLeftAnchored && !isRightAnchored && "left-1/2 -translate-x-1/2",
-                    )}
-                  >
-                    <p className="font-medium text-zinc-100">{tab.label}</p>
-                    <p className="mt-0.5 text-zinc-500">{tab.description}</p>
-                  </div>
                 </div>
               );
             })}
           </div>
+          {hoveredTabMeta && hoveredTabTooltip ? (
+            <div
+              className="pointer-events-none fixed z-[80] w-[168px] rounded-[8px] border border-white/[0.08] bg-[#17171d] px-2 py-1 text-[10px] text-zinc-300 shadow-[0_10px_28px_rgba(0,0,0,0.45)]"
+              style={{ left: hoveredTabTooltip.x, top: hoveredTabTooltip.y }}
+            >
+              <p className="font-medium text-zinc-100">{hoveredTabMeta.label}</p>
+              <p className="mt-0.5 text-zinc-500">{hoveredTabMeta.description}</p>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

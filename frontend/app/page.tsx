@@ -18,6 +18,7 @@ import {
   expandDesktopPaths,
   getDesktopPreviewSrc,
   listenDesktopFileDrops,
+  openPathDesktop,
   pickFilePathsForUpload,
   pickFolderFilePathsForUpload,
   preloadDesktopRuntime,
@@ -734,6 +735,18 @@ export default function HomePage() {
     }
   };
 
+  const openExternalLink = useCallback(async (url: string) => {
+    try {
+      if (isDesktopMode) {
+        await openPathDesktop(url);
+        return;
+      }
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      pushToast("Open link failed", String(error), "error");
+    }
+  }, [isDesktopMode, pushToast]);
+
   const handleTitlebarMouseDown = (event: ReactMouseEvent<HTMLElement>, onClick?: () => void) => {
     if (!isDesktopMode) return;
     if (event.button !== 0) return;
@@ -813,7 +826,7 @@ export default function HomePage() {
             onMouseDown={(event) => handleTitlebarMouseDown(event)}
             left={(
               <div className="flex h-full min-w-0 items-center">
-                <div className="flex h-full items-center gap-2 px-4">
+                <div className="flex h-full items-center gap-2 pr-4">
                   <img src="/icon.png" alt="ClearCut logo" className="h-[18px] w-[18px] rounded-[5px] border border-white/[0.12] object-cover" />
                   <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-600">ClearCut</span>
                 </div>
@@ -1019,7 +1032,7 @@ export default function HomePage() {
               </div>
               <button
                 type="button"
-                onClick={() => window.open(PROJECT_GITHUB_URL, "_blank", "noopener,noreferrer")}
+                onClick={() => void openExternalLink(PROJECT_GITHUB_URL)}
                 className="inline-flex items-center gap-1 rounded-[4px] border border-white/[0.07] px-1.5 py-0.5 font-mono text-[10px] text-zinc-500 transition-colors hover:border-white/[0.12] hover:bg-white/[0.05] hover:text-zinc-200"
               >
                 <Github className="h-3 w-3" />
@@ -1028,7 +1041,7 @@ export default function HomePage() {
               {updateInfo ? (
                 <button
                   type="button"
-                  onClick={() => window.open(LATEST_RELEASE_URL, "_blank", "noopener,noreferrer")}
+                  onClick={() => void openExternalLink(LATEST_RELEASE_URL)}
                   className="inline-flex items-center gap-1 rounded-[4px] border border-indigo-400/30 bg-indigo-500/12 px-1.5 py-0.5 font-mono text-[10px] text-indigo-300 transition-colors hover:bg-indigo-500/18"
                 >
                   <Download className="h-3 w-3" />
@@ -1073,11 +1086,7 @@ export default function HomePage() {
           </svg>
 
           {/* card — same language as empty state but faster spin + ping icon */}
-          <div className="drop-card-border drop-card-border--fast relative w-full max-w-[400px] backdrop-blur-xl shadow-[0_40px_120px_rgba(0,0,0,0.70)] animate-[fade-in_0.14s_ease_both]">
-            <span className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/22 to-transparent" />
-            <div className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 h-36 w-56 rounded-full bg-indigo-500/20 blur-3xl" />
-
-            <div className="relative px-8 py-8 text-center">
+<div className="relative w-full max-w-[400px] overflow-hidden rounded-[20px] border border-white/[0.08] bg-[#111114]/90 backdrop-blur-xl shadow-[0_40px_120px_rgba(0,0,0,0.70)] animate-[fade-in_0.14s_ease_both]">            <div className="relative px-8 py-8 text-center">
               {/* pulsing icon */}
               <div className="relative mx-auto h-[60px] w-[60px]">
                 <span className="absolute inset-0 animate-ping rounded-[18px] bg-indigo-500/18" style={{ animationDuration: "1.6s" }} />

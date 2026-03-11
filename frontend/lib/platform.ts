@@ -259,6 +259,12 @@ export async function openOutputFolderDesktop(outputPath?: string): Promise<void
   await invoke("open_path_in_os", { path: outputPath });
 }
 
+export async function openPathDesktop(path: string): Promise<void> {
+  if (!isTauriEnvironment()) return;
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("open_path_in_os", { path });
+}
+
 export async function revealFileDesktop(path: string): Promise<void> {
   if (!isTauriEnvironment()) return;
   const { invoke } = await import("@tauri-apps/api/core");

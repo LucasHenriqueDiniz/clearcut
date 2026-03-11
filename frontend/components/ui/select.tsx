@@ -92,7 +92,7 @@ export function Select({ value, options, onChange, className }: SelectProps) {
           : { top: pos.top }),
       }}
       className={cn(
-        "overflow-hidden border border-[var(--border-m)] bg-[#171720] shadow-[0_24px_48px_rgba(0,0,0,0.72)] animate-[dropIn_0.12s_ease]",
+        "overflow-hidden border border-white/[0.12] bg-[#171720] shadow-[0_24px_48px_rgba(0,0,0,0.72)] animate-[dropIn_0.12s_ease]",
         pos.openUpward
           ? "rounded-t-[11px] rounded-b-[11px] border-b-indigo-400/25"
           : "rounded-b-[11px] border-t-indigo-400/25",
@@ -143,7 +143,7 @@ export function Select({ value, options, onChange, className }: SelectProps) {
               );
             })}
             {groupIndex < groups.length - 1 ? (
-              <div className="mx-1 my-[3px] h-px bg-[var(--border)]" />
+              <div className="mx-1 my-[3px] h-px bg-white/[0.07]" />
             ) : null}
           </div>
         ))}
@@ -158,8 +158,8 @@ export function Select({ value, options, onChange, className }: SelectProps) {
         type="button"
         onClick={() => (open ? setOpen(false) : openDropdown())}
         className={cn(
-          "flex h-8 w-full items-center justify-between rounded-[9px] border border-[var(--border)] bg-[#141419] px-[9px] text-[12px] text-[var(--text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition-[border-color,background-color,box-shadow]",
-          "hover:border-[var(--border-m)] hover:bg-[#1a1a20]",
+          "flex h-8 w-full items-center justify-between rounded-[9px] border border-white/[0.07] bg-[#141419] px-[9px] text-[12px] text-[var(--text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition-[border-color,background-color,box-shadow]",
+          "hover:border-white/[0.12] hover:bg-[#1a1a20]",
           open && "border-indigo-400/45 bg-[#1a1a22] shadow-[0_0_0_1px_rgba(99,102,241,0.16),inset_0_1px_0_rgba(255,255,255,0.04)]",
         )}
       >

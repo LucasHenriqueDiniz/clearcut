@@ -192,7 +192,10 @@ export function JobQueue({
   if (!uploads.length) {
     return (
       <div className={cn("flex h-full min-h-0 flex-col bg-[var(--bg)]", className)}>
-        <div className="relative flex flex-1 flex-col items-center justify-start overflow-hidden px-6 pb-6 pt-4 text-center">
+        {/* ↓ justify-center so the card sits in the middle, not at the top */}
+        <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-8 py-10 text-center">
+
+          {/* ambient colour bends */}
           <div className="absolute inset-0 opacity-80 pointer-events-none">
             <ColorBends
               colors={["#4f46e5", "#0ea5e9", "#10b981"]}
@@ -205,31 +208,33 @@ export function JobQueue({
               transparent
             />
           </div>
-          <div className="drop-card-border relative z-10 w-full max-w-[440px] backdrop-blur-xl shadow-[0_32px_96px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.03)]">
-            <span className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-            <div className="pointer-events-none absolute -top-20 left-1/2 h-32 w-48 -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
 
-            <div className="relative px-8 py-7">
+          {/* dark vignette */}
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,rgba(99,102,241,0.18),transparent),radial-gradient(ellipse_60%_50%_at_50%_100%,rgba(16,185,129,0.10),transparent),linear-gradient(180deg,rgba(10,10,12,0.30),rgba(10,10,12,0.72))]" />
+
+          {/* card with spinning gradient border */}
+<div className="relative z-10 w-full max-w-[440px] overflow-hidden rounded-[20px] border border-white/[0.08] bg-[#111114]/90 backdrop-blur-xl shadow-[0_32px_96px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.03)]">            <div className="relative px-8 py-10">
+              {/* icon */}
               <div className="mx-auto flex h-[60px] w-[60px] items-center justify-center rounded-[18px] border border-white/[0.08] bg-[#16161a] text-indigo-300 shadow-[0_0_0_1px_rgba(99,102,241,0.15),0_20px_48px_rgba(79,70,229,0.22),inset_0_1px_0_rgba(255,255,255,0.06)]">
                 <ImageUp className="h-[26px] w-[26px]" strokeWidth={1.6} />
               </div>
 
-              <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.28em] text-zinc-500">Queue</p>
-              <p className="mt-1.5 text-[22px] font-semibold tracking-[-0.025em] text-[var(--text)]">Drop images anywhere</p>
+              <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.28em] text-zinc-500">Queue</p>
+              <p className="mt-2 text-[22px] font-semibold tracking-[-0.025em] text-[var(--text)]">Drop images anywhere</p>
               <p className="mx-auto mt-2 max-w-xs text-[12px] leading-[1.65] text-[var(--muted)]">PNG · JPG · WEBP · BMP · GIF · TIFF · HEIC · AVIF</p>
 
               {uploading ? (
-                <div className="mx-auto mt-4 flex w-full items-center gap-3 rounded-[11px] border border-white/[0.09] bg-black/25 px-4 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                <div className="mx-auto mt-5 flex w-full items-center gap-3 rounded-[11px] border border-white/[0.09] bg-black/25 px-4 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                   <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-200" />
                   <div>
-                    <p className="text-[12px] font-medium text-[var(--text)]">Uploading files...</p>
+                    <p className="text-[12px] font-medium text-[var(--text)]">Uploading files…</p>
                     <p className="text-[11px] text-[var(--muted)]">You can keep dropping more files.</p>
                   </div>
                 </div>
               ) : null}
 
               {engineStarting ? (
-                <div className="mx-auto mt-2.5 flex w-full items-center gap-3 rounded-[11px] border border-indigo-400/20 bg-indigo-500/[0.08] px-4 py-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                <div className="mx-auto mt-3 flex w-full items-center gap-3 rounded-[11px] border border-indigo-400/20 bg-indigo-500/[0.08] px-4 py-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
                   <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-200" />
                   <div>
                     <p className="text-[12px] font-medium text-zinc-100">Engine starting</p>
@@ -238,7 +243,7 @@ export function JobQueue({
                 </div>
               ) : null}
 
-              <div className="mt-5 flex flex-wrap justify-center gap-2">
+              <div className="mt-7 flex flex-wrap justify-center gap-2">
                 <Button variant="primary" size="sm" onClick={onChooseFiles}>
                   <ImageUp className="h-3.5 w-3.5" />
                   Choose files
@@ -253,7 +258,7 @@ export function JobQueue({
                 </Button>
               </div>
 
-              <p className="mt-4 text-[11px] text-zinc-600">Folders and repeated drops stay in the same queue.</p>
+              <p className="mt-6 text-[11px] text-zinc-600">Folders and repeated drops stay in the same queue.</p>
             </div>
           </div>
         </div>
