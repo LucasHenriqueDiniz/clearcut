@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Clock3, Download, FolderOpen, Grid2x2, Layers3, PanelLeft, Play, Settings2, SunMedium, Tags, Upload } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ChevronDown, Clock3, Download, FolderOpen, Github, Grid2x2, Layers3, PanelLeft, Play, Settings2, SlidersHorizontal, SunMedium, Tags, Upload } from "lucide-react";
 import { HistoryList } from "@/features/history/history-list";
 import { JobQueue }       from "@/features/jobs/job-queue";
 import { MaskEditorModal } from "@/features/jobs/mask-editor-modal";
@@ -11,10 +12,10 @@ import { ProvidersSettings } from "@/features/settings/providers-settings";
 import { Button } from "@/components/ui";
 import { ToastItem, ToastStack } from "@/components/toast-stack";
 import { DevConsole } from "@/components/dev-console";
-import { AppSidebar } from "@/components/app-sidebar";
 import { WindowTitlebar } from "@/components/window-titlebar";
 import {
   getBackendBaseUrl,
+  expandDesktopPaths,
   getDesktopPreviewSrc,
   listenDesktopFileDrops,
   pickFilePathsForUpload,
@@ -53,6 +54,9 @@ const ACCEPTED_EXTENSIONS = new Set([
   "heif",
   "avif",
 ]);
+const APP_VERSION = "0.1.0";
+const PROJECT_GITHUB_URL = "https://github.com/LucasHenriqueDiniz/clearcut";
+const LATEST_RELEASE_URL = "https://github.com/LucasHenriqueDiniz/clearcut/releases/latest";
 
 function getFileExtension(name: string): string {
   const idx = name.lastIndexOf(".");
@@ -79,6 +83,27 @@ async function buildFingerprint(file: File) {
   );
 }
 
+function normalizeVersion(version: string): number[] {
+  return version
+    .trim()
+    .replace(/^v/i, "")
+    .split("-")[0]
+    .split(".")
+    .map((part) => Number(part) || 0);
+}
+
+function compareVersions(a: string, b: string): number {
+  const av = normalizeVersion(a);
+  const bv = normalizeVersion(b);
+  const len = Math.max(av.length, bv.length);
+  for (let i = 0; i < len; i += 1) {
+    const diff = (av[i] ?? 0) - (bv[i] ?? 0);
+    if (diff > 0) return 1;
+    if (diff < 0) return -1;
+  }
+  return 0;
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
@@ -91,12 +116,20 @@ export default function HomePage() {
   const [engineStarting, setEngineStarting] = useState(false);
 
   const [activeTab,    setActiveTab]    = useState<"workspace" | "providers" | "settings" | "history">("workspace");
-  const [workspaceTab, setWorkspaceTab] = useState<"general" | "naming" | "templates">("general");
+  const [workspaceTab, setWorkspaceTab] = useState<"general" | "naming" | "presets" | "batch">("general");
   const [refineUploadId, setRefineUploadId] = useState<string>();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [settingsPanelCollapsed, setSettingsPanelCollapsed] = useState(false);
+  const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; url: string } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const dragDepthRef = useRef(0);
   const blobPreviewUrlsRef = useRef<Set<string>>(new Set());
   const keyBufferRef = useRef<string[]>([]);
+  const updateToastShownRef = useRef(false);
+  const workspacePickerRef = useRef<HTMLDivElement | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
+  const navDragStateRef = useRef<{ startX: number; startY: number; dragged: boolean } | null>(null);
+  const desktopWindowRef = useRef<{ startDragging: () => Promise<void> } | null>(null);
   const isDesktopMode = useIsTauri();
   const outputBaseUrl = useBackendBaseUrl();
 
@@ -143,6 +176,23 @@ export default function HomePage() {
     }
     blobPreviewUrlsRef.current.clear();
   }, []);
+
+  useEffect(() => {
+    if (!isDesktopMode) {
+      desktopWindowRef.current = null;
+      return;
+    }
+    let cancelled = false;
+    void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
+      if (!cancelled) {
+        desktopWindowRef.current = getCurrentWindow();
+      }
+    });
+    return () => {
+      cancelled = true;
+      desktopWindowRef.current = null;
+    };
+  }, [isDesktopMode]);
 
   const chooseFiles = async () => {
     if (isDesktopMode) {
@@ -286,27 +336,16 @@ export default function HomePage() {
     () => uploads.length > 0 && !busy && !uploading,
     [uploads.length, busy, uploading],
   );
-
-  const pageMeta = useMemo(() => {
-    if (activeTab === "workspace") {
-      if (workspaceTab === "general") {
-        return { root: "Workspace", leaf: "General", icon: Grid2x2 };
-      }
-      if (workspaceTab === "naming") {
-        return { root: "Workspace", leaf: "Naming", icon: Tags };
-      }
-      return { root: "Workspace", leaf: "Templates", icon: Layers3 };
-    }
-    if (activeTab === "providers") {
-      return { root: "Providers", leaf: "", icon: SunMedium };
-    }
-    if (activeTab === "settings") {
-      return { root: "Settings", leaf: "", icon: Settings2 };
-    }
-    return { root: "History", leaf: "", icon: Clock3 };
-  }, [activeTab, workspaceTab]);
-  const PageIcon = pageMeta.icon;
-  const pushToast = (title: string, description?: string, variant: ToastItem["variant"] = "info") => {
+  const workspaceTabs = useMemo(
+    () => [
+      { id: "general", label: "General", icon: Grid2x2, hint: "Workflow and export" },
+      { id: "naming", label: "Naming", icon: Tags, hint: "Filename and destination" },
+      { id: "presets", label: "Presets", icon: Layers3, hint: "Saved configurations" },
+      { id: "batch", label: "Batch", icon: SlidersHorizontal, hint: "Queue and performance" },
+    ] as const,
+    [],
+  );
+  const pushToast = useCallback((title: string, description?: string, variant: ToastItem["variant"] = "info") => {
     const id = crypto.randomUUID();
     setToasts((current) => [...current, { id, title, description, variant }]);
     if (variant === "error") {
@@ -317,7 +356,62 @@ export default function HomePage() {
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
     }, 4200);
-  };
+  }, []);
+
+  const pageMeta = useMemo(() => {
+    if (activeTab === "workspace") {
+      if (workspaceTab === "general") {
+        return { root: "Workspace", leaf: "General", icon: Grid2x2 };
+      }
+      if (workspaceTab === "naming") {
+        return { root: "Workspace", leaf: "Naming", icon: Tags };
+      }
+      if (workspaceTab === "presets") {
+        return { root: "Workspace", leaf: "Presets", icon: Layers3 };
+      }
+      return { root: "Workspace", leaf: "Batch", icon: Settings2 };
+    }
+    if (activeTab === "providers") {
+      return { root: "Providers", leaf: "", icon: SunMedium };
+    }
+    if (activeTab === "settings") {
+      return { root: "Settings", leaf: "", icon: Settings2 };
+    }
+    return { root: "History", leaf: "", icon: Clock3 };
+  }, [activeTab, workspaceTab]);
+  const PageIcon = pageMeta.icon;
+  useEffect(() => {
+    if (activeTab !== "workspace" && workspacePickerOpen) {
+      setWorkspacePickerOpen(false);
+    }
+  }, [activeTab, workspacePickerOpen]);
+
+  useEffect(() => {
+    let active = true;
+    const checkForUpdates = async () => {
+      try {
+        const response = await fetch("https://api.github.com/repos/LucasHenriqueDiniz/clearcut/releases/latest", {
+          headers: { Accept: "application/vnd.github+json" },
+        });
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (!active || typeof payload?.tag_name !== "string") return;
+        const latestVersion = payload.tag_name;
+        const latestUrl = typeof payload?.html_url === "string" ? payload.html_url : LATEST_RELEASE_URL;
+        if (compareVersions(latestVersion, APP_VERSION) <= 0) return;
+        setUpdateInfo({ version: latestVersion, url: latestUrl });
+        if (updateToastShownRef.current) return;
+        updateToastShownRef.current = true;
+        pushToast("Update available", `${latestVersion} is available. Click update in the footer.`, "info");
+      } catch {
+        // Silent fail: no network or API rate limit should not disrupt app usage.
+      }
+    };
+    void checkForUpdates();
+    return () => {
+      active = false;
+    };
+  }, [pushToast]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -339,6 +433,17 @@ export default function HomePage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  useEffect(() => {
+    if (!workspacePickerOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!workspacePickerRef.current) return;
+      if (workspacePickerRef.current.contains(event.target as Node)) return;
+      setWorkspacePickerOpen(false);
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    return () => window.removeEventListener("mousedown", onPointerDown);
+  }, [workspacePickerOpen]);
 
   // ── Upload handler ───────────────────────────────────────────────────────
   const handleFiles = async (files: File[]) => {
@@ -404,9 +509,13 @@ export default function HomePage() {
   const handleDesktopPaths = async (paths: string[]) => {
     setUploading(true);
     try {
-      const validPaths = paths.filter((path) => ACCEPTED_EXTENSIONS.has(getFileExtension(path)));
+      const expandedPaths = await expandDesktopPaths(paths);
+      const validPaths = expandedPaths.filter((path) => ACCEPTED_EXTENSIONS.has(getFileExtension(path)));
       const invalidNames = paths
-        .filter((path) => !ACCEPTED_EXTENSIONS.has(getFileExtension(path)))
+        .filter((path) => {
+          const ext = getFileExtension(path);
+          return ext.length > 0 && !ACCEPTED_EXTENSIONS.has(ext);
+        })
         .map((path) => path.split(/[\\/]/).pop() || path);
 
       if (invalidNames.length) {
@@ -625,28 +734,146 @@ export default function HomePage() {
     }
   };
 
+  const handleTitlebarMouseDown = (event: ReactMouseEvent<HTMLElement>, onClick?: () => void) => {
+    if (!isDesktopMode) return;
+    if (event.button !== 0) return;
+    if (event.detail > 1) return;
+    if ((event.target as HTMLElement).closest("[data-titlebar-ignore-drag]")) return;
+
+    if (!onClick) {
+      event.preventDefault();
+      const win = desktopWindowRef.current;
+      if (win) void win.startDragging();
+      return;
+    }
+
+    navDragStateRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      dragged: false,
+    };
+
+    const onMove = (moveEvent: MouseEvent) => {
+      const dragState = navDragStateRef.current;
+      if (!dragState || dragState.dragged) return;
+      const deltaX = Math.abs(moveEvent.clientX - dragState.startX);
+      const deltaY = Math.abs(moveEvent.clientY - dragState.startY);
+      if (deltaX + deltaY < 6) return;
+      dragState.dragged = true;
+      const win = desktopWindowRef.current;
+      if (win) void win.startDragging();
+    };
+
+    const onUp = () => {
+      const dragState = navDragStateRef.current;
+      navDragStateRef.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      if (!dragState?.dragged && onClick) {
+        onClick();
+      }
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (contextMenuRef.current?.contains(event.target as Node)) return;
+      setContextMenu(null);
+    };
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setContextMenu(null);
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onEscape);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onEscape);
+    };
+  }, [contextMenu]);
+
   return (
     <>
-      <div className="flex h-screen w-screen min-h-0 min-w-0 overflow-hidden">
-        <AppSidebar
-          activeTab={activeTab}
-          workspaceTab={workspaceTab}
-          collapsed={sidebarCollapsed}
-          onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
-          onActiveTabChange={setActiveTab}
-          onWorkspaceTabChange={setWorkspaceTab}
-        />
-
+      <div
+        className="flex h-screen w-screen min-h-0 min-w-0 overflow-hidden"
+        onContextMenu={(event) => {
+          event.preventDefault();
+          const width = 210;
+          const height = 238;
+          const x = Math.min(event.clientX, window.innerWidth - width - 10);
+          const y = Math.min(event.clientY, window.innerHeight - height - 10);
+          setContextMenu({ x: Math.max(8, x), y: Math.max(8, y) });
+        }}
+      >
         <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
-          <WindowTitlebar />
+          <WindowTitlebar
+            onMouseDown={(event) => handleTitlebarMouseDown(event)}
+            left={(
+              <div className="flex h-full min-w-0 items-center">
+                <div className="flex h-full items-center gap-2 px-4">
+                  <img src="/icon.png" alt="ClearCut logo" className="h-[18px] w-[18px] rounded-[5px] border border-white/[0.12] object-cover" />
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-600">ClearCut</span>
+                </div>
+                <div className="flex h-full items-center border-l border-r border-white/[0.07]">
+                  <button
+                    type="button"
+                    className={`relative h-full px-4 text-[11px] ${activeTab === "workspace" ? "bg-white/[0.022] text-zinc-100" : "text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300"}`}
+                    onMouseDown={(event) => {
+                      event.stopPropagation();
+                      handleTitlebarMouseDown(event, () => setActiveTab("workspace"));
+                    }}
+                    onClick={() => !isDesktopMode && setActiveTab("workspace")}
+                  >
+                    Workspace
+                  </button>
+                  <button
+                    type="button"
+                    className={`relative h-full border-l border-white/[0.07] px-4 text-[11px] ${activeTab === "providers" ? "bg-white/[0.022] text-zinc-100" : "text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300"}`}
+                    onMouseDown={(event) => {
+                      event.stopPropagation();
+                      handleTitlebarMouseDown(event, () => setActiveTab("providers"));
+                    }}
+                    onClick={() => !isDesktopMode && setActiveTab("providers")}
+                  >
+                    Providers
+                  </button>
+                  <button
+                    type="button"
+                    className={`relative h-full border-l border-white/[0.07] px-4 text-[11px] ${activeTab === "settings" ? "bg-white/[0.022] text-zinc-100" : "text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300"}`}
+                    onMouseDown={(event) => {
+                      event.stopPropagation();
+                      handleTitlebarMouseDown(event, () => setActiveTab("settings"));
+                    }}
+                    onClick={() => !isDesktopMode && setActiveTab("settings")}
+                  >
+                    Settings
+                  </button>
+                  <button
+                    type="button"
+                    className={`relative h-full border-l border-white/[0.07] px-4 text-[11px] ${activeTab === "history" ? "bg-white/[0.022] text-zinc-100" : "text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300"}`}
+                    onMouseDown={(event) => {
+                      event.stopPropagation();
+                      handleTitlebarMouseDown(event, () => setActiveTab("history"));
+                    }}
+                    onClick={() => !isDesktopMode && setActiveTab("history")}
+                  >
+                    History
+                  </button>
+                </div>
+              </div>
+            )}
+          />
           <main className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
             <div className="flex h-[46px] w-full items-center gap-3 border-b border-white/[0.07] bg-[#111114] pr-4">
               <div className="flex min-w-0 flex-1 items-center">
                 <button
                   type="button"
-                  onClick={() => setSidebarCollapsed((current) => !current)}
+                  onClick={() => setSettingsPanelCollapsed((current) => !current)}
                   className="mr-4 flex h-[46px] w-[46px] items-center justify-center border-r border-white/[0.07] text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-100"
-                  aria-label="Toggle sidebar"
+                  aria-label="Toggle settings panel"
                 >
                   <PanelLeft className="h-4 w-4" />
                 </button>
@@ -656,12 +883,51 @@ export default function HomePage() {
                   </div>
                   <span className="text-[12px] text-zinc-500">{pageMeta.root}</span>
                   {pageMeta.leaf ? <span className="text-zinc-700">›</span> : null}
-                  {pageMeta.leaf ? <span className="text-[12px] font-semibold text-zinc-100">{pageMeta.leaf}</span> : null}
+                  {pageMeta.leaf ? (
+                    <div className="relative" ref={workspacePickerRef}>
+                      {activeTab === "workspace" ? (
+                        <>
+                          <button
+                            type="button"
+                            className="flex items-center gap-1 rounded-[6px] px-1.5 py-1 text-[12px] font-semibold text-zinc-100 transition-colors hover:bg-white/[0.04]"
+                            onClick={() => setWorkspacePickerOpen((current) => !current)}
+                            aria-label="Choose workspace section"
+                          >
+                            <span>{pageMeta.leaf}</span>
+                            <ChevronDown className={`h-3.5 w-3.5 text-zinc-500 transition-transform ${workspacePickerOpen ? "rotate-180" : ""}`} />
+                          </button>
+                          {workspacePickerOpen ? (
+                            <div className="absolute left-0 top-[calc(100%+6px)] z-40 w-[180px] overflow-hidden rounded-[10px] border border-white/[0.08] bg-[#17171d] p-1 shadow-[0_18px_40px_rgba(0,0,0,0.5)]">
+                              {workspaceTabs.map((tab) => {
+                                const TabIcon = tab.icon;
+                                return (
+                                  <button
+                                    key={tab.id}
+                                    type="button"
+                                    className={`flex w-full items-center gap-2 rounded-[7px] px-2.5 py-2 text-left text-[11px] transition-colors ${workspaceTab === tab.id ? "bg-indigo-500/12 text-indigo-300" : "text-zinc-300 hover:bg-white/[0.05]"}`}
+                                    onClick={() => {
+                                      setWorkspaceTab(tab.id);
+                                      setWorkspacePickerOpen(false);
+                                    }}
+                                  >
+                                    <TabIcon className="h-3.5 w-3.5 shrink-0" />
+                                    <span>{tab.label}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span className="text-[12px] font-semibold text-zinc-100">{pageMeta.leaf}</span>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
               {activeTab === "workspace" ? (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   <Button variant="secondary" size="sm" onClick={handleOpenOutput}>
                     <FolderOpen className="h-3 w-3" />
                     Open output
@@ -682,56 +948,96 @@ export default function HomePage() {
               ) : null}
             </div>
 
-            {activeTab === "workspace" ? (
-              <div className="grid min-h-0 w-full flex-1 grid-cols-[320px_minmax(0,1fr)] overflow-hidden">
-                <JobSettingsPanel
-                  className="h-full"
-                  activeTab={workspaceTab}
-                  onActiveTabChange={setWorkspaceTab}
-                  showLocalTabs={false}
-                />
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, x: 18 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -18 }}
+                transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                className="min-h-0 w-full flex-1 overflow-hidden"
+              >
+                {activeTab === "workspace" ? (
+                  <div className={`grid min-h-0 h-full w-full overflow-hidden ${settingsPanelCollapsed ? "grid-cols-[0_minmax(0,1fr)]" : "grid-cols-[320px_minmax(0,1fr)]"}`}>
+                    <div className={`${settingsPanelCollapsed ? "pointer-events-none opacity-0" : "opacity-100"} min-h-0 transition-opacity duration-150`}>
+                      <JobSettingsPanel
+                        className="h-full"
+                        activeTab={workspaceTab}
+                        onActiveTabChange={setWorkspaceTab}
+                        showLocalTabs={false}
+                      />
+                    </div>
 
-                <JobQueue
-                  className="h-full"
-                  uploads={uploads}
-                  uploading={uploading}
-                  engineStarting={engineStarting}
-                  currentJob={currentJob}
-                  resultByInput={resultByInput}
-                  onRemove={removeUpload}
-                  onRerun={rerunItem}
-                  onSelectRefine={(item) => setRefineUploadId(item.upload_id)}
-                  onChooseFiles={() => void chooseFiles()}
-                  onChooseFolder={() => void chooseFolder()}
-                  onPaste={() => void pasteImage()}
-                  onSaveAll={() => void handleSaveAll()}
-                  onDownloadZip={() => void handleDownloadZip()}
-                  onDownloadItem={(item) => void handleDownloadItem(item)}
-                  onCancelJob={() => {
-                    if (!currentJob) return;
-                    void cancelJob(currentJob.job_id);
-                  }}
-                  refineUploadId={refineUploadId}
-                  isDropActive={isDropActive}
-                />
-              </div>
-            ) : null}
+                    <JobQueue
+                      className="h-full"
+                      uploads={uploads}
+                      uploading={uploading}
+                      engineStarting={engineStarting}
+                      currentJob={currentJob}
+                      resultByInput={resultByInput}
+                      onRemove={removeUpload}
+                      onRerun={rerunItem}
+                      onSelectRefine={(item) => setRefineUploadId(item.upload_id)}
+                      onChooseFiles={() => void chooseFiles()}
+                      onChooseFolder={() => void chooseFolder()}
+                      onPaste={() => void pasteImage()}
+                      onSaveAll={() => void handleSaveAll()}
+                      onDownloadZip={() => void handleDownloadZip()}
+                      onDownloadItem={(item) => void handleDownloadItem(item)}
+                      onCancelJob={() => {
+                        if (!currentJob) return;
+                        void cancelJob(currentJob.job_id);
+                      }}
+                      refineUploadId={refineUploadId}
+                      isDropActive={isDropActive}
+                    />
+                  </div>
+                ) : null}
 
-            {activeTab === "providers" ? (
-              <div className="min-h-0 w-full flex-1 overflow-auto">
-                <ProvidersSettings />
+                {activeTab === "providers" ? (
+                  <div className="min-h-0 h-full w-full overflow-auto">
+                    <ProvidersSettings />
+                  </div>
+                ) : null}
+                {activeTab === "settings" ? (
+                  <div className="min-h-0 h-full w-full overflow-auto">
+                    <AppSettings />
+                  </div>
+                ) : null}
+                {activeTab === "history" ? (
+                  <div className="min-h-0 h-full w-full overflow-auto">
+                    <HistoryList />
+                  </div>
+                ) : null}
+              </motion.div>
+            </AnimatePresence>
+
+            <div className="flex h-[22px] items-center gap-3 border-t border-white/[0.07] bg-[#090909] px-[14px]">
+              <div className="flex items-center gap-1 font-mono text-[10px] text-zinc-500">
+                <span className={`inline-block h-1.5 w-1.5 rounded-full ${busy || currentJob?.state === "processing" ? "animate-pulse bg-indigo-400" : "bg-emerald-400"}`} />
+                <span>{busy || currentJob?.state === "processing" ? "Engine processing" : "Engine ready"}</span>
               </div>
-            ) : null}
-            {activeTab === "settings" ? (
-              <div className="min-h-0 w-full flex-1 overflow-auto">
-                <AppSettings />
-              </div>
-            ) : null}
-            {activeTab === "history" ? (
-              <div className="min-h-0 w-full flex-1 overflow-auto">
-                <HistoryList />
-              </div>
-            ) : null}
+              <button
+                type="button"
+                onClick={() => window.open(PROJECT_GITHUB_URL, "_blank", "noopener,noreferrer")}
+                className="inline-flex items-center gap-1 rounded-[4px] border border-white/[0.07] px-1.5 py-0.5 font-mono text-[10px] text-zinc-500 transition-colors hover:border-white/[0.12] hover:bg-white/[0.05] hover:text-zinc-200"
+              >
+                <Github className="h-3 w-3" />
+                GitHub
+              </button>
+              {updateInfo ? (
+                <button
+                  type="button"
+                  onClick={() => window.open(LATEST_RELEASE_URL, "_blank", "noopener,noreferrer")}
+                  className="inline-flex items-center gap-1 rounded-[4px] border border-indigo-400/30 bg-indigo-500/12 px-1.5 py-0.5 font-mono text-[10px] text-indigo-300 transition-colors hover:bg-indigo-500/18"
+                >
+                  <Download className="h-3 w-3" />
+                  Update {updateInfo.version}
+                </button>
+              ) : null}
+              <div className="font-mono text-[10px] text-zinc-500">{options.local_model} · {options.enhance_engine}</div>
+              <div className="ml-auto font-mono text-[10px] text-zinc-500">v{APP_VERSION}</div>
+            </div>
           </main>
         </div>
       </div>
@@ -753,15 +1059,45 @@ export default function HomePage() {
           );
         }}
       />
+
+      {/* ── Drop overlay ─────────────────────────────────────────────────── */}
       {isDropActive && (
-        <div className="pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-black/45 backdrop-blur-[2px]">
-          <div className="rounded-3xl border border-white/15 bg-zinc-950/90 px-10 py-8 text-center shadow-2xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-zinc-500">Drop files</p>
-            <p className="mt-3 text-2xl font-semibold text-zinc-100">Drop images into the queue</p>
-            <p className="mt-2 text-sm text-zinc-400">The whole screen accepts files and folders.</p>
+        <div className="pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-[radial-gradient(ellipse_80%_60%_at_50%_30%,rgba(79,70,229,0.16),transparent),rgba(0,0,0,0.76)] backdrop-blur-[4px]">
+
+          {/* corner bracket accents */}
+          <svg className="pointer-events-none absolute inset-0 h-full w-full" xmlns="http://www.w3.org/2000/svg">
+            <polyline points="0,56 0,0 56,0"          fill="none" stroke="rgba(99,102,241,0.45)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <polyline points="calc(100% - 56px),0 100%,0 100%,56"  fill="none" stroke="rgba(99,102,241,0.45)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <polyline points="0,calc(100% - 56px) 0,100% 56,100%" fill="none" stroke="rgba(99,102,241,0.45)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <polyline points="calc(100% - 56px),100% 100%,100% 100%,calc(100% - 56px)" fill="none" stroke="rgba(99,102,241,0.45)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+
+          {/* card — same language as empty state but faster spin + ping icon */}
+          <div className="drop-card-border drop-card-border--fast relative w-full max-w-[400px] backdrop-blur-xl shadow-[0_40px_120px_rgba(0,0,0,0.70)] animate-[fade-in_0.14s_ease_both]">
+            <span className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/22 to-transparent" />
+            <div className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 h-36 w-56 rounded-full bg-indigo-500/20 blur-3xl" />
+
+            <div className="relative px-8 py-8 text-center">
+              {/* pulsing icon */}
+              <div className="relative mx-auto h-[60px] w-[60px]">
+                <span className="absolute inset-0 animate-ping rounded-[18px] bg-indigo-500/18" style={{ animationDuration: "1.6s" }} />
+                <div className="relative flex h-full w-full items-center justify-center rounded-[18px] border border-indigo-400/20 bg-[#16161a] text-indigo-300 shadow-[0_0_0_1px_rgba(99,102,241,0.15),0_20px_48px_rgba(79,70,229,0.26),inset_0_1px_0_rgba(255,255,255,0.06)]">
+                  <Upload className="h-[26px] w-[26px]" strokeWidth={1.5} />
+                </div>
+              </div>
+
+              <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.28em] text-zinc-500">Drop files</p>
+              <p className="mt-1.5 text-[22px] font-semibold tracking-[-0.025em] text-[var(--text)]">
+                Drop into the queue
+              </p>
+              <p className="mx-auto mt-2 max-w-[240px] text-[12px] leading-[1.65] text-[var(--muted)]">
+                Release to add images and folders to the current queue.
+              </p>
+            </div>
           </div>
         </div>
       )}
+
       {closingBackend ? (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-[16px] border border-white/[0.08] bg-[#121217] px-6 py-5 shadow-[0_30px_80px_rgba(0,0,0,0.55)]">
@@ -773,6 +1109,34 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {contextMenu ? (
+        <div
+          ref={contextMenuRef}
+          className="fixed z-[180] w-[210px] overflow-hidden rounded-[12px] border border-white/[0.09] bg-[#141419] p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.55)]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button type="button" className="flex w-full items-center rounded-[8px] px-2.5 py-2 text-left text-[11px] text-zinc-200 transition-colors hover:bg-white/[0.06]" onClick={() => { setContextMenu(null); void runJob(); }}>
+            Run batch
+          </button>
+          <button type="button" className="flex w-full items-center rounded-[8px] px-2.5 py-2 text-left text-[11px] text-zinc-200 transition-colors hover:bg-white/[0.06]" onClick={() => { setContextMenu(null); void handleOpenOutput(); }}>
+            Open output folder
+          </button>
+          <button type="button" className="flex w-full items-center rounded-[8px] px-2.5 py-2 text-left text-[11px] text-zinc-200 transition-colors hover:bg-white/[0.06]" onClick={() => { setContextMenu(null); void handleSaveAll(); }}>
+            Save all outputs
+          </button>
+          <div className="my-1 h-px bg-white/[0.08]" />
+          <button type="button" className="flex w-full items-center rounded-[8px] px-2.5 py-2 text-left text-[11px] text-zinc-200 transition-colors hover:bg-white/[0.06]" onClick={() => { setContextMenu(null); void chooseFiles(); }}>
+            Choose files
+          </button>
+          <button type="button" className="flex w-full items-center rounded-[8px] px-2.5 py-2 text-left text-[11px] text-zinc-200 transition-colors hover:bg-white/[0.06]" onClick={() => { setContextMenu(null); void chooseFolder(); }}>
+            Choose folder
+          </button>
+          <button type="button" className="flex w-full items-center rounded-[8px] px-2.5 py-2 text-left text-[11px] text-zinc-200 transition-colors hover:bg-white/[0.06]" onClick={() => { setContextMenu(null); void pasteImage(); }}>
+            Paste image
+          </button>
         </div>
       ) : null}
 

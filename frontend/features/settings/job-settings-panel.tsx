@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState, type ComponentType, type ReactNode, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { ChevronDown, Cpu, GitBranch, Image, Info, Sparkles, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, Cpu, GitBranch, Grid2x2, Image, Info, Layers3, SlidersHorizontal, Sparkles, Tags } from "lucide-react";
 import { Button, Checkbox, Collapsible, CollapsibleContent, CollapsibleTrigger, Input, Select, Slider, Switch } from "@/components/ui";
 import { presets, useAppStore } from "@/stores/use-app-store";
 import { cn } from "@/lib/utils";
 import type { ProcessingOptions } from "@/types";
 
-type SettingsTab = "general" | "naming" | "templates";
+type SettingsTab = "general" | "naming" | "presets" | "batch";
 type SavedPreset = {
   id: string;
   name: string;
@@ -22,10 +22,16 @@ type Props = {
 };
 
 const CUSTOM_PRESETS_KEY = "ipu.custom-presets";
-const workspaceTabs: Array<{ id: SettingsTab; label: string }> = [
-  { id: "general", label: "General" },
-  { id: "naming", label: "Naming" },
-  { id: "templates", label: "Templates" },
+const workspaceTabs: Array<{
+  id: SettingsTab;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+  description: string;
+}> = [
+  { id: "general", label: "General", icon: Grid2x2, description: "Workflow and export settings" },
+  { id: "naming", label: "Naming", icon: Tags, description: "Output naming and destination" },
+  { id: "presets", label: "Presets", icon: Layers3, description: "Built-in and custom presets" },
+  { id: "batch", label: "Batch", icon: SlidersHorizontal, description: "Queue behavior and workers" },
 ];
 
 const formatOptions = [
@@ -177,7 +183,7 @@ function CollapsibleSection({
           </div>
           <ChevronDown className="h-4 w-4 shrink-0 text-[var(--muted)] transition-transform group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
-        <CollapsibleContent className="overflow-visible border-t border-white/[0.07] px-4 pb-4 pt-3">
+        <CollapsibleContent className="overflow-visible border-t border-white/[0.07] px-4 pb-4 pt-3 data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up">
           {children}
         </CollapsibleContent>
       </section>
@@ -319,6 +325,46 @@ export function JobSettingsPanel({
                 {tab.label}
               </Button>
             ))}
+          </div>
+        </div>
+      ) : null}
+
+      {!showLocalTabs ? (
+        <div className="border-b border-white/[0.07] bg-[#101013] px-3 py-2">
+          <div className="flex items-center gap-1.5">
+            {workspaceTabs.map((tab, index) => {
+              const TabIcon = tab.icon;
+              const isLeftAnchored = index <= 1;
+              const isRightAnchored = index >= workspaceTabs.length - 2;
+              return (
+                <div key={tab.id} className="group relative">
+                  <button
+                    type="button"
+                    aria-label={tab.label}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      "flex h-7 w-7 items-center justify-center rounded-[7px] border transition-colors",
+                      activeTab === tab.id
+                        ? "border-indigo-400/28 bg-indigo-500/14 text-indigo-300"
+                        : "border-white/[0.06] bg-white/[0.02] text-zinc-500 hover:bg-white/[0.06] hover:text-zinc-200",
+                    )}
+                  >
+                    <TabIcon className="h-3.5 w-3.5" />
+                  </button>
+                  <div
+                    className={cn(
+                      "pointer-events-none absolute top-[calc(100%+7px)] z-40 w-[168px] rounded-[8px] border border-white/[0.08] bg-[#17171d] px-2 py-1 text-[10px] text-zinc-300 opacity-0 shadow-[0_10px_28px_rgba(0,0,0,0.45)] transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100",
+                      isLeftAnchored && "left-0",
+                      isRightAnchored && "right-0",
+                      !isLeftAnchored && !isRightAnchored && "left-1/2 -translate-x-1/2",
+                    )}
+                  >
+                    <p className="font-medium text-zinc-100">{tab.label}</p>
+                    <p className="mt-0.5 text-zinc-500">{tab.description}</p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       ) : null}
@@ -559,26 +605,6 @@ export function JobSettingsPanel({
               </div>
             </CollapsibleSection>
 
-            <CollapsibleSection title="Batch & Performance" description="Queue behavior and performance tuning" icon={SlidersHorizontal} defaultOpen={false}>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2">
-                  <div>
-                    <p className="text-[12px] font-medium text-[var(--text)]">Skip duplicates</p>
-                    <p className="text-[11px] text-[var(--muted)]">Ignore files already in the current queue</p>
-                  </div>
-                  <Toggle checked={skipDuplicates} onChange={setSkipDuplicates} />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-medium text-zinc-400">Parallel workers</span>
-                  <Toggle checked={parallelWorkersEnabled} onChange={setParallelWorkersEnabled} />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Slider value={workerCount} min={1} max={8} onValueChange={setWorkerCount} />
-                  <span className="w-7 text-right font-mono text-[10px] text-zinc-500">{workerCount}</span>
-                </div>
-                {workerCount >= 6 ? <p className="text-[11px] text-zinc-500">Higher values use more memory and can reduce stability on low-memory systems.</p> : null}
-              </div>
-            </CollapsibleSection>
           </div>
         ) : null}
 
@@ -657,7 +683,7 @@ export function JobSettingsPanel({
           </>
         ) : null}
 
-        {activeTab === "templates" ? (
+        {activeTab === "presets" ? (
           <>
             <Section title="Saved presets">
               <div className="space-y-1.5">
@@ -711,6 +737,35 @@ export function JobSettingsPanel({
               </div>
             </Section>
           </>
+        ) : null}
+
+        {activeTab === "batch" ? (
+          <div className="space-y-3 p-3">
+            <CollapsibleSection title="Queue behavior" description="How files are managed in the queue" icon={SlidersHorizontal}>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-[10px] border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                  <div>
+                    <p className="text-[12px] font-medium text-[var(--text)]">Skip duplicates</p>
+                    <p className="text-[11px] text-[var(--muted)]">Ignore files already in the current queue</p>
+                  </div>
+                  <Toggle checked={skipDuplicates} onChange={setSkipDuplicates} />
+                </div>
+              </div>
+            </CollapsibleSection>
+            <CollapsibleSection title="Performance" description="Parallel workers and memory usage" icon={Cpu}>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-zinc-400">Parallel workers</span>
+                  <Toggle checked={parallelWorkersEnabled} onChange={setParallelWorkersEnabled} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Slider value={workerCount} min={1} max={8} onValueChange={setWorkerCount} />
+                  <span className="w-7 text-right font-mono text-[10px] text-zinc-500">{workerCount}</span>
+                </div>
+                {workerCount >= 6 ? <p className="text-[11px] text-zinc-500">Higher values use more memory and can reduce stability on low-memory systems.</p> : null}
+              </div>
+            </CollapsibleSection>
+          </div>
         ) : null}
       </div>
     </div>

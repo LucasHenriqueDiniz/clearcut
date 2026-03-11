@@ -162,6 +162,30 @@ export async function pickFolderFilePathsForUpload(): Promise<string[]> {
   return filterImagePaths(paths);
 }
 
+export async function expandDesktopPaths(paths: string[]): Promise<string[]> {
+  if (!isTauriEnvironment()) return filterImagePaths(paths);
+
+  const { invoke } = await import("@tauri-apps/api/core");
+  const collected: string[] = [];
+  for (const rawPath of paths) {
+    const path = normalizePath(rawPath);
+    if (IMAGE_EXTENSIONS.has(getExtension(path))) {
+      collected.push(path);
+      continue;
+    }
+
+    try {
+      const nested = await invoke<string[]>("list_supported_images_in_directory", { directory: path });
+      collected.push(...nested.map(normalizePath));
+    } catch {
+      // Ignore non-directory entries or inaccessible paths.
+    }
+  }
+
+  const unique = Array.from(new Set(collected));
+  return filterImagePaths(unique);
+}
+
 export async function saveAllDesktop(outputPaths: string[]): Promise<SaveAllResult> {
   if (!isTauriEnvironment()) return {};
 
@@ -263,7 +287,8 @@ export async function listenDesktopFileDrops(
       return;
     }
 
-    await onEvent({ type: "drop", paths: filterImagePaths(payload.paths) });
+    const rawPaths = Array.isArray(payload.paths) ? payload.paths.map(normalizePath) : [];
+    await onEvent({ type: "drop", paths: rawPaths });
   });
 
   return unlisten;

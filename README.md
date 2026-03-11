@@ -9,6 +9,11 @@
 </p>
 
 <p align="center">
+  Maintained by <a href="https://www.lucashdo.com/">Lucas Henrique Diniz</a> ·
+  <a href="mailto:lucashdo@protonmail.com">lucashdo@protonmail.com</a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/github/v/release/LucasHenriqueDiniz/clearcut?display_name=release&style=for-the-badge&logo=github" alt="Latest release" />
   <img src="https://img.shields.io/badge/Tauri-2.x-24C8D8?style=for-the-badge&logo=tauri&logoColor=white" alt="Tauri 2" />
   <img src="https://img.shields.io/badge/Next.js-15-111111?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js 15" />

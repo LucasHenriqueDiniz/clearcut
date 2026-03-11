@@ -5,7 +5,7 @@ import { ChevronLeft, Clock3, Grid2x2, Layers3, Settings2, SlidersHorizontal, Ta
 import { cn } from "@/lib/utils";
 
 type MainTab = "workspace" | "providers" | "settings" | "history";
-type WorkspaceTab = "general" | "naming" | "templates";
+type WorkspaceTab = "general" | "naming" | "presets" | "batch";
 
 type Props = {
   activeTab: MainTab;
@@ -26,20 +26,26 @@ type NavItemProps = {
 
 function NavItem({ active, collapsed, icon: Icon, label, onClick }: NavItemProps) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex w-full items-center gap-2.5 overflow-hidden rounded-[9px] px-2.5 py-2 text-left text-[12px] text-zinc-400 transition-colors",
-        "hover:bg-white/[0.04] hover:text-zinc-100",
-        active && "bg-indigo-500/12 text-indigo-300",
-        collapsed && "justify-center px-2",
-      )}
-      title={collapsed ? label : undefined}
-    >
-      <Icon className="h-3.5 w-3.5 shrink-0" />
-      <span className={cn("truncate transition-all", collapsed && "max-w-0 opacity-0")}>{label}</span>
-    </button>
+    <div className={cn("group relative", !collapsed && "w-full")}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "flex w-full items-center gap-2.5 overflow-hidden rounded-[9px] px-2.5 py-2 text-left text-[12px] text-zinc-400 transition-colors",
+          "hover:bg-white/[0.04] hover:text-zinc-100",
+          active && "bg-indigo-500/12 text-indigo-300",
+          collapsed && "justify-center px-2",
+        )}
+      >
+        <Icon className="h-3.5 w-3.5 shrink-0" />
+        <span className={cn("truncate transition-all", collapsed && "max-w-0 opacity-0")}>{label}</span>
+      </button>
+      {collapsed ? (
+        <div className="pointer-events-none absolute left-[calc(100%+9px)] top-1/2 z-40 w-max max-w-[180px] -translate-y-1/2 rounded-[8px] border border-white/[0.08] bg-[#17171d] px-2 py-1 text-[10px] text-zinc-300 opacity-0 shadow-[0_10px_28px_rgba(0,0,0,0.45)] transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+          <p className="font-medium text-zinc-100">{label}</p>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -109,13 +115,23 @@ export function AppSidebar({
             }}
           />
           <NavItem
-            active={activeTab === "workspace" && workspaceTab === "templates"}
+            active={activeTab === "workspace" && workspaceTab === "presets"}
             collapsed={collapsed}
             icon={Layers3}
-            label="Templates"
+            label="Presets"
             onClick={() => {
               onActiveTabChange("workspace");
-              onWorkspaceTabChange("templates");
+              onWorkspaceTabChange("presets");
+            }}
+          />
+          <NavItem
+            active={activeTab === "workspace" && workspaceTab === "batch"}
+            collapsed={collapsed}
+            icon={Settings2}
+            label="Batch"
+            onClick={() => {
+              onActiveTabChange("workspace");
+              onWorkspaceTabChange("batch");
             }}
           />
         </div>
@@ -147,18 +163,24 @@ export function AppSidebar({
       </div>
 
       <div className={cn("border-t border-white/[0.07] px-2 py-3", collapsed && "px-1.5")}>
-        <button
-          type="button"
-          onClick={onToggleCollapsed}
-          className={cn(
-            "flex w-full items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-[12px] text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-100",
-            collapsed && "justify-center px-2",
-          )}
-          title={collapsed ? "Expand" : undefined}
-        >
-          <ChevronLeft className={cn("h-3.5 w-3.5 shrink-0 transition-transform", collapsed && "rotate-180")} />
-          <span className={cn("truncate transition-all", collapsed && "max-w-0 opacity-0")}>Collapse</span>
-        </button>
+        <div className={cn("group relative", !collapsed && "w-full")}>
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            className={cn(
+              "flex w-full items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-[12px] text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-100",
+              collapsed && "justify-center px-2",
+            )}
+          >
+            <ChevronLeft className={cn("h-3.5 w-3.5 shrink-0 transition-transform", collapsed && "rotate-180")} />
+            <span className={cn("truncate transition-all", collapsed && "max-w-0 opacity-0")}>Collapse</span>
+          </button>
+          {collapsed ? (
+            <div className="pointer-events-none absolute left-[calc(100%+9px)] top-1/2 z-40 w-max max-w-[180px] -translate-y-1/2 rounded-[8px] border border-white/[0.08] bg-[#17171d] px-2 py-1 text-[10px] text-zinc-300 opacity-0 shadow-[0_10px_28px_rgba(0,0,0,0.45)] transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+              <p className="font-medium text-zinc-100">Expand</p>
+            </div>
+          ) : null}
+        </div>
       </div>
     </aside>
   );

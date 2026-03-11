@@ -2,7 +2,7 @@
 name = "clearcut-desktop"
 version = "0.1.0"
 description = "Desktop shell for ClearCut"
-authors = ["OpenAI Codex"]
+authors = ["Lucas Henrique Diniz <lucashdo@protonmail.com>"]
 edition = "2021"
 
 [build-dependencies]

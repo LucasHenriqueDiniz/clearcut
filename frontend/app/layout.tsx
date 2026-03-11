@@ -9,6 +9,19 @@ const plexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], var
 export const metadata = {
   title: "ClearCut",
   description: "Local-first utility for background removal and batch exports",
+  metadataBase: new URL("https://www.lucashdo.com/"),
+  applicationName: "ClearCut",
+  authors: [
+    {
+      name: "Lucas Henrique Diniz",
+      url: "https://www.lucashdo.com/",
+    },
+  ],
+  creator: "Lucas Henrique Diniz",
+  publisher: "Lucas Henrique Diniz",
+  alternates: {
+    canonical: "https://github.com/LucasHenriqueDiniz/clearcut",
+  },
   manifest: "/site.webmanifest",
   icons: {
     icon: [

@@ -564,11 +564,14 @@ fn main() {
                 api.prevent_close();
 
                 let app_handle = app_handle.clone();
-                tauri::async_runtime::spawn_blocking(move || {
+                thread::spawn(move || {
                     let state = app_handle.state::<BackendRuntimeState>();
                     shutdown_backend(&state);
                     let _ = app_handle.emit("backend-closed", ());
-                    app_handle.exit(0);
+                    let app_for_exit = app_handle.clone();
+                    let _ = app_handle.run_on_main_thread(move || {
+                        app_for_exit.exit(0);
+                    });
                 });
             }
         }

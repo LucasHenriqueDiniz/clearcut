@@ -216,8 +216,44 @@
     }
   }
 
+  @keyframes collapsible-down {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+      max-height: 0;
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+      max-height: var(--radix-collapsible-content-height);
+    }
+  }
+
+  @keyframes collapsible-up {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+      max-height: var(--radix-collapsible-content-height);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(-4px);
+      max-height: 0;
+    }
+  }
+
   .animate-fade-in {
     animation: fade-in 0.2s ease both;
+  }
+
+  .animate-collapsible-down {
+    overflow: hidden;
+    animation: collapsible-down 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .animate-collapsible-up {
+    overflow: hidden;
+    animation: collapsible-up 0.16s ease;
   }
 
   .bg-sidebar {
@@ -246,5 +282,42 @@
 
   .border-sidebar-border {
     border-color: hsl(var(--sidebar-border));
+  }
+
+  .drop-card-border {
+    position: relative;
+    border-radius: 22px;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.5),
+      rgba(14, 165, 233, 0.24),
+      rgba(16, 185, 129, 0.22),
+      rgba(99, 102, 241, 0.5)
+    );
+    background-size: 220% 220%;
+    animation: drop-border-shift 7s linear infinite;
+  }
+
+  .drop-card-border::before {
+    content: "";
+    position: absolute;
+    inset: 1px;
+    border-radius: 21px;
+    background: linear-gradient(180deg, rgba(17, 17, 20, 0.8), rgba(17, 17, 20, 0.94));
+  }
+
+  .drop-card-border > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  @keyframes drop-border-shift {
+    0% {
+      background-position: 0% 50%;
+    }
+    100% {
+      background-position: 200% 50%;
+    }
   }
 }

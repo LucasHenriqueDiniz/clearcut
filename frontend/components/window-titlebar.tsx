@@ -1,10 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { Minus, Square, X } from "lucide-react";
 import { isTauriEnvironment } from "@/lib/platform";
+import { cn } from "@/lib/utils";
 
-export function WindowTitlebar() {
+type WindowTitlebarProps = {
+  left?: ReactNode;
+  className?: string;
+  onMouseDown?: (event: ReactMouseEvent<HTMLElement>) => void;
+};
+
+export function WindowTitlebar({ left, className, onMouseDown }: WindowTitlebarProps) {
   const [enabled, setEnabled] = useState(false);
   const [maximized, setMaximized] = useState(false);
 
@@ -51,16 +58,25 @@ export function WindowTitlebar() {
     setMaximized(true);
   };
 
+  const handleHeaderDoubleClick = (event: ReactMouseEvent<HTMLElement>) => {
+    if ((event.target as HTMLElement).closest("[data-titlebar-ignore-drag]")) return;
+    void runWindowAction("maximize");
+  };
+
   return (
     <header
-      data-tauri-drag-region
-      className="flex h-[38px] items-center justify-between border-b border-white/[0.07] bg-[#0a0a0c]"
+      onMouseDown={onMouseDown}
+      onDoubleClick={handleHeaderDoubleClick}
+      className={cn("relative flex h-[38px] items-center border-b border-white/[0.07] bg-[#0a0a0c]", className)}
     >
+      <div data-tauri-drag-region className="absolute inset-x-0 top-0 h-1.5" />
+      <div data-tauri-drag-region className="h-full w-3 shrink-0" />
+      <div className="min-w-0 flex-1">{left}</div>
       <div data-tauri-drag-region className="h-full flex-1" />
-
-      <div className="flex items-center">
+      <div className="flex h-full items-center" data-titlebar-ignore-drag>
         <button
           type="button"
+          data-titlebar-ignore-drag
           className="flex h-[38px] w-11 items-center justify-center text-zinc-500 transition hover:bg-white/[0.06] hover:text-zinc-100"
           onClick={() => void runWindowAction("minimize")}
           aria-label="Minimize window"
@@ -69,6 +85,7 @@ export function WindowTitlebar() {
         </button>
         <button
           type="button"
+          data-titlebar-ignore-drag
           className="flex h-[38px] w-11 items-center justify-center text-zinc-500 transition hover:bg-white/[0.06] hover:text-zinc-100"
           onClick={() => void runWindowAction("maximize")}
           aria-label={maximized ? "Restore window" : "Maximize window"}
@@ -77,6 +94,7 @@ export function WindowTitlebar() {
         </button>
         <button
           type="button"
+          data-titlebar-ignore-drag
           className="flex h-[38px] w-11 items-center justify-center text-zinc-500 transition hover:bg-red-500/20 hover:text-red-400"
           onClick={() => void runWindowAction("close")}
           aria-label="Close window"

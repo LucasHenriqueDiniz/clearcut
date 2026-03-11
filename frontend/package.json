@@ -2,6 +2,19 @@
   "name": "clearcut-frontend",
   "private": true,
   "version": "0.1.0",
+  "homepage": "https://github.com/LucasHenriqueDiniz/clearcut",
+  "author": {
+    "name": "Lucas Henrique Diniz",
+    "email": "lucashdo@protonmail.com",
+    "url": "https://www.lucashdo.com/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LucasHenriqueDiniz/clearcut.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LucasHenriqueDiniz/clearcut/issues"
+  },
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",

@@ -122,7 +122,7 @@ export function Sidebar({ side = "left", className, children, ...props }: React.
           isMobile
             ? (openMobile ? "translate-x-0" : "-translate-x-full")
             : "translate-x-0",
-          side === "right" && "left-auto right-0 border-l border-r-0",
+          side === "right" && "left-auto right-0 border-0",
           className,
         )}
         {...props}

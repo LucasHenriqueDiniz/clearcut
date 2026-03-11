@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Brush, ClipboardPaste, Download, FolderOpen, ImageUp, RotateCcw, Square, Trash2 } from "lucide-react";
+import { Brush, CheckCircle2, ClipboardPaste, Download, FolderOpen, ImageUp, RotateCcw, Sparkles, Square, Trash2 } from "lucide-react";
 import { Badge, BadgeProps, Button, ProgressBar, StatusDot } from "@/components/ui";
 import { ColorBends } from "@/components/effects/color-bends";
 import type { JobFileResult, JobResponse, UploadItem } from "@/types";
@@ -134,6 +134,28 @@ function PreviewStack({
   return <Thumb src={inputSrc} alt={filename} label="IN" />;
 }
 
+function OverlapThumbs({ items }: { items: Array<Pick<UploadItem, "upload_id" | "preview_url" | "filename">> }) {
+  return (
+    <div className="flex items-center">
+      {items.map((item, index) => (
+        <div
+          key={item.upload_id}
+          className={cn(
+            "relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-[8px] border border-white/[0.12] bg-[#18181d] shadow-[0_10px_22px_rgba(0,0,0,0.25)]",
+            index > 0 && "-ml-3",
+          )}
+        >
+          {item.preview_url ? (
+            <img src={item.preview_url} alt={item.filename} className="h-full w-full object-cover" />
+          ) : (
+            <span className="text-[9px] font-medium text-zinc-500">{item.filename.slice(0, 1).toUpperCase()}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function JobQueue({
   uploads,
   currentJob,
@@ -156,6 +178,10 @@ export function JobQueue({
 }: Props) {
   const [compareItem, setCompareItem] = useState<UploadItem | null>(null);
   const outputBaseUrl = useBackendBaseUrl();
+  const isWarmupState = Boolean(uploading || engineStarting);
+  const doneCount = currentJob?.files.filter((file) => file.state === "done").length ?? 0;
+  const showCompletionCard = currentJob?.state === "done" && doneCount > 0;
+  const previewItems = uploads.slice(0, 10);
 
   const getResult = (item: UploadItem) => resultByInput[item.path];
   const outputUrl = (result?: JobFileResult) =>
@@ -166,7 +192,7 @@ export function JobQueue({
   if (!uploads.length) {
     return (
       <div className={cn("flex h-full min-h-0 flex-col bg-[var(--bg)]", className)}>
-        <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-8 py-10 text-center">
+        <div className="relative flex flex-1 flex-col items-center justify-start overflow-hidden px-6 pb-6 pt-4 text-center">
           <div className="absolute inset-0 opacity-80 pointer-events-none">
             <ColorBends
               colors={["#4f46e5", "#0ea5e9", "#10b981"]}
@@ -179,48 +205,56 @@ export function JobQueue({
               transparent
             />
           </div>
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.24),transparent_28%),radial-gradient(circle_at_bottom,rgba(16,185,129,0.14),transparent_34%),linear-gradient(180deg,rgba(10,10,12,0.28),rgba(10,10,12,0.78))]" />
-          <div className="relative w-full max-w-lg overflow-hidden rounded-[20px] border border-white/[0.08] bg-[linear-gradient(180deg,rgba(17,17,20,0.78),rgba(17,17,20,0.92))] px-7 py-8 shadow-[0_24px_80px_rgba(0,0,0,0.42)] backdrop-blur-xl">
-            <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/16 to-transparent" />
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[16px] border border-indigo-400/14 bg-[#16161a]/90 text-indigo-300 shadow-[0_0_0_1px_rgba(99,102,241,0.12),0_18px_40px_rgba(79,70,229,0.16),inset_0_1px_0_rgba(255,255,255,0.05)]">
-              <ImageUp className="h-6 w-6" />
-            </div>
-            <p className="mt-5 font-mono text-[10px] uppercase tracking-[0.24em] text-zinc-500">Queue</p>
-            <p className="mt-2 text-xl font-semibold tracking-[-0.02em] text-[var(--text)]">Drop images anywhere on screen</p>
-            <p className="mx-auto mt-1 max-w-sm text-[12px] leading-5 text-[var(--muted)]">PNG · JPG · WEBP · BMP · GIF · TIFF · HEIC · AVIF</p>
-            {uploading ? (
-              <div className="mx-auto mt-5 flex w-full max-w-sm items-center justify-center gap-3 rounded-[11px] border border-white/[0.09] bg-black/20 px-4 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm">
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-200" />
-                <div>
-                  <p className="text-sm font-medium text-[var(--text)]">Uploading files...</p>
-                  <p className="text-xs text-[var(--muted)]">You can keep dropping more files.</p>
-                </div>
+          <div className="drop-card-border relative z-10 w-full max-w-[440px] backdrop-blur-xl shadow-[0_32px_96px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.03)]">
+            <span className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+            <div className="pointer-events-none absolute -top-20 left-1/2 h-32 w-48 -translate-x-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
+
+            <div className="relative px-8 py-7">
+              <div className="mx-auto flex h-[60px] w-[60px] items-center justify-center rounded-[18px] border border-white/[0.08] bg-[#16161a] text-indigo-300 shadow-[0_0_0_1px_rgba(99,102,241,0.15),0_20px_48px_rgba(79,70,229,0.22),inset_0_1px_0_rgba(255,255,255,0.06)]">
+                <ImageUp className="h-[26px] w-[26px]" strokeWidth={1.6} />
               </div>
-            ) : null}
-            {engineStarting ? (
-              <div className="mx-auto mt-3 flex w-full max-w-sm items-center justify-center gap-3 rounded-[11px] border border-indigo-400/20 bg-indigo-500/[0.08] px-4 py-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-200" />
-                <div>
-                  <p className="text-[12px] font-medium text-zinc-100">Engine starting</p>
-                  <p className="text-[11px] text-zinc-400">Preparing local model for first run.</p>
+
+              <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.28em] text-zinc-500">Queue</p>
+              <p className="mt-1.5 text-[22px] font-semibold tracking-[-0.025em] text-[var(--text)]">Drop images anywhere</p>
+              <p className="mx-auto mt-2 max-w-xs text-[12px] leading-[1.65] text-[var(--muted)]">PNG · JPG · WEBP · BMP · GIF · TIFF · HEIC · AVIF</p>
+
+              {uploading ? (
+                <div className="mx-auto mt-4 flex w-full items-center gap-3 rounded-[11px] border border-white/[0.09] bg-black/25 px-4 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                  <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-200" />
+                  <div>
+                    <p className="text-[12px] font-medium text-[var(--text)]">Uploading files...</p>
+                    <p className="text-[11px] text-[var(--muted)]">You can keep dropping more files.</p>
+                  </div>
                 </div>
+              ) : null}
+
+              {engineStarting ? (
+                <div className="mx-auto mt-2.5 flex w-full items-center gap-3 rounded-[11px] border border-indigo-400/20 bg-indigo-500/[0.08] px-4 py-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                  <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-200" />
+                  <div>
+                    <p className="text-[12px] font-medium text-zinc-100">Engine starting</p>
+                    <p className="text-[11px] text-zinc-400">Preparing local model for first run.</p>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="mt-5 flex flex-wrap justify-center gap-2">
+                <Button variant="primary" size="sm" onClick={onChooseFiles}>
+                  <ImageUp className="h-3.5 w-3.5" />
+                  Choose files
+                </Button>
+                <Button variant="secondary" size="sm" onClick={onChooseFolder}>
+                  <FolderOpen className="h-3.5 w-3.5" />
+                  Choose folder
+                </Button>
+                <Button variant="secondary" size="sm" onClick={onPaste}>
+                  <ClipboardPaste className="h-3.5 w-3.5" />
+                  Paste image
+                </Button>
               </div>
-            ) : null}
-            <div className="mt-6 flex flex-wrap justify-center gap-2">
-              <Button variant="primary" size="sm" onClick={onChooseFiles}>
-                <ImageUp className="h-3.5 w-3.5" />
-                Choose files
-              </Button>
-              <Button variant="secondary" size="sm" onClick={onChooseFolder}>
-                <FolderOpen className="h-3.5 w-3.5" />
-                Choose folder
-              </Button>
-              <Button variant="secondary" size="sm" onClick={onPaste}>
-                <ClipboardPaste className="h-3.5 w-3.5" />
-                Paste image
-              </Button>
+
+              <p className="mt-4 text-[11px] text-zinc-600">Folders and repeated drops stay in the same queue.</p>
             </div>
-            <p className="mt-5 text-[11px] text-zinc-500">Folders and repeated drops stay in the same queue.</p>
           </div>
         </div>
       </div>
@@ -268,12 +302,52 @@ export function JobQueue({
         </div>
 
         <div className="min-h-0 flex-1 space-y-[2px] overflow-y-auto p-[6px]">
-          {uploading ? (
-            <div className="mb-2 flex items-center gap-3 rounded-[10px] border border-dashed border-indigo-400/18 bg-[linear-gradient(180deg,rgba(79,70,229,0.06),rgba(255,255,255,0.02))] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-200" />
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-[var(--text)]">Uploading files...</p>
-                <p className="text-xs text-[var(--muted)]">You can keep adding files while the queue stays active.</p>
+          {isWarmupState ? (
+            <div className="mb-2 rounded-[12px] border border-indigo-400/20 bg-[linear-gradient(180deg,rgba(79,70,229,0.12),rgba(255,255,255,0.03))] px-3.5 py-3 shadow-[0_14px_34px_rgba(49,46,129,0.18),inset_0_1px_0_rgba(255,255,255,0.05)]">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-zinc-200" />
+                <div className="min-w-0">
+                  <p className="text-[12px] font-semibold text-zinc-100">{engineStarting ? "Engine is loading" : "Files are being uploaded"}</p>
+                  <p className="mt-1 text-[11px] leading-5 text-zinc-400">
+                    Keep dropping files if you want. The queue is collecting inputs and processing will begin when initialization completes.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {showCompletionCard ? (
+            <div className="mb-2 overflow-hidden rounded-[12px] border border-emerald-400/20 bg-[linear-gradient(180deg,rgba(16,185,129,0.12),rgba(255,255,255,0.02))] px-3.5 py-3 shadow-[0_14px_34px_rgba(6,95,70,0.2),inset_0_1px_0_rgba(255,255,255,0.04)]">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] border border-emerald-400/25 bg-emerald-500/12 text-emerald-300">
+                  <CheckCircle2 className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12px] font-semibold text-zinc-100">Batch finished successfully</p>
+                  <p className="mt-1 text-[11px] leading-5 text-zinc-400">
+                    {doneCount} file{doneCount === 1 ? "" : "s"} ready. Save all outputs or download a ZIP package.
+                  </p>
+                  <div className="mt-2.5 flex items-center gap-3">
+                    <OverlapThumbs items={previewItems} />
+                    {uploads.length > previewItems.length ? (
+                      <span className="font-mono text-[10px] text-zinc-500">+{uploads.length - previewItems.length}</span>
+                    ) : null}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button variant="secondary" size="sm" onClick={onSaveAll}>
+                      <FolderOpen className="h-3 w-3" />
+                      Save all
+                    </Button>
+                    <Button variant="success" size="sm" onClick={onDownloadZip}>
+                      <Download className="h-3 w-3" />
+                      Download ZIP
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={onChooseFiles}>
+                      <Sparkles className="h-3 w-3" />
+                      Add more files
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           ) : null}
