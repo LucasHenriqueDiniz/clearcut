@@ -65,9 +65,9 @@ jobs:
         shell: bash
         run: |
           if [[ "${{ matrix.platform }}" == "windows-latest" ]]; then
-            test -f src-tauri/resources/backend/ipu-backend.exe
+            test -f src-tauri/resources/backend/ipu-backend/ipu-backend.exe
           else
-            test -f src-tauri/resources/backend/ipu-backend
+            test -f src-tauri/resources/backend/ipu-backend/ipu-backend
           fi
 
       - name: Build Tauri app
