@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=".github/workflows/assets/banner.png" alt="ClearCut banner" width="100%" />
+  <img src=".github/banner.png" alt="ClearCut banner" width="100%" />
 </p>
 
 <h1 align="center">ClearCut</h1>
