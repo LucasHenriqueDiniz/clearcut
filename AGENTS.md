@@ -117,6 +117,15 @@ include building it.
 
 Environment values come from `import.meta.env.VITE_*`, not `process.env`.
 
+Option previews in `frontend/public/option-previews/` are **generated**, by
+`backend/scripts/generate_option_previews.py`. It runs the real pipeline twice
+per option - off and on, everything else equal - so a thumbnail cannot claim an
+effect the code does not produce. Regenerate after changing `pipelines/steps.py`
+rather than editing the images. Options whose effect is a pixel or two wide
+(alpha threshold, halo cleanup) deliberately have no tile: magnified enough to
+see, they stop looking like the option and start looking like noise. They carry
+wording instead.
+
 three.js is lazy-loaded in `job-queue.tsx` — it draws a decorative backdrop and is
 worth about half the bundle. Keep it behind `lazy()`.
 

@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import { ChevronRight, Download, FolderInput, Info, Plus, Scissors, Sparkles, Trash2, WandSparkles } from "lucide-react";
 import { Button, Checkbox, Input, Select, Slider, Switch } from "@/components/ui";
+import { OptionPreview } from "@/components/option-preview";
 import { createPreset, deletePreset, listModelCatalog, listPresets, updatePreset } from "@/services/api";
 import { FALLBACK_PRESETS } from "@/lib/default-presets";
 import { useDefaultExportDirectory } from "@/lib/export-directory";
@@ -143,7 +144,7 @@ function HelpHint({ title, description }: { title: string; description: string }
 }
 
 // ─── Field ───────────────────────────────────────────────────────────────────
-function Field({ label, help, children, hint }: { label: string; help?: ReactNode; children: ReactNode; hint?: string }) {
+function Field({ label, help, children, hint, preview }: { label: string; help?: ReactNode; children: ReactNode; hint?: string; preview?: ReactNode }) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
@@ -153,7 +154,14 @@ function Field({ label, help, children, hint }: { label: string; help?: ReactNod
         </div>
         {help}
       </div>
-      {children}
+      {preview ? (
+        <div className="flex items-start gap-2.5">
+          {preview}
+          <div className="min-w-0 flex-1">{children}</div>
+        </div>
+      ) : (
+        children
+      )}
     </div>
   );
 }
@@ -166,6 +174,7 @@ function ToggleCard({
   onChange,
   help,
   accent = false,
+  preview,
 }: {
   label: string;
   hint?: string;
@@ -173,6 +182,7 @@ function ToggleCard({
   onChange: (checked: boolean) => void;
   help?: ReactNode;
   accent?: boolean;
+  preview?: ReactNode;
 }) {
   return (
     <div
@@ -183,6 +193,7 @@ function ToggleCard({
           : "border-white/[0.06] bg-white/[0.015]",
       )}
     >
+      {preview}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <p className="text-[12px] font-medium text-zinc-200">{label}</p>
@@ -202,12 +213,14 @@ function CheckRow({
   checked,
   onChange,
   help,
+  preview,
 }: {
   label: string;
   hint?: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   help?: ReactNode;
+  preview?: ReactNode;
 }) {
   const id = useId();
   return (
@@ -221,6 +234,7 @@ function CheckRow({
         onCheckedChange={(value) => onChange(Boolean(value))}
         className="mt-0.5 shrink-0"
       />
+      {preview}
       <div className="min-w-0 flex-1">
         <p className="text-[12px] font-medium text-zinc-200">{label}</p>
         {hint ? <p className="mt-0.5 text-[10px] leading-[1.45] text-zinc-500">{hint}</p> : null}
@@ -599,6 +613,7 @@ export function JobSettingsPanel({
                   checked={options.preprocess_denoise}
                   onChange={(checked) => setOptions({ preprocess_denoise: checked })}
                   help={<HelpHint title="Denoise" description="Reduces small pixel noise before the cutout model sees the image." />}
+                  preview={<OptionPreview name="denoise" alt="Detail shown noisy, then smoothed" />}
                 />
                 <CheckRow
                   label="Color normalization"
@@ -613,6 +628,7 @@ export function JobSettingsPanel({
                   checked={options.preprocess_sharpening}
                   onChange={(checked) => setOptions({ preprocess_sharpening: checked })}
                   help={<HelpHint title="Sharpening" description="Applies a mild unsharp mask before cutout to clarify soft edges." />}
+                  preview={<OptionPreview name="sharpen" alt="Detail shown soft, then sharpened" />}
                 />
               </div>
             </Section>
@@ -701,7 +717,8 @@ export function JobSettingsPanel({
               <Field
                 label="Quality preset"
                 hint="Balances speed and edge accuracy."
-                help={<HelpHint title="Quality preset" description="Balances cutout speed and edge quality." />}
+                help={<HelpHint title="Quality preset" description="Balances cutout speed and edge quality. Best enables alpha matting, which is what recovers hair and fur." />}
+                preview={<OptionPreview name="cutout-quality" alt="The same fur edge cut at Balanced and at Best quality" />}
               >
                 <Select
                   value={mapQualityToUi(options.local_quality_preset)}
@@ -714,18 +731,18 @@ export function JobSettingsPanel({
             <Section title="Mask cleanup">
               <div className="space-y-2">
                 <CheckRow
-                  label="Alpha matting"
-                  hint="Improves semi-transparent edges on hair and fur."
+                  label="Drop faint pixels"
+                  hint="Clears near-transparent specks left around the subject. Too strong eats hair."
                   checked={options.alpha_threshold > 0}
                   onChange={(checked) => setOptions({ alpha_threshold: checked ? 10 : 0 })}
-                  help={<HelpHint title="Alpha matting" description="Improves semi-transparent transitions around complex edges." />}
+                  help={<HelpHint title="Drop faint pixels" description="Forces alpha below the threshold to fully transparent. This is a hard cut, not alpha matting - for hair and fur set Quality preset to Best." />}
                 />
                 <CheckRow
                   label="Remove mask artifacts"
                   hint="Reduces white halos left by segmentation."
                   checked={options.white_halo_cleanup > 0}
                   onChange={(checked) => setOptions({ white_halo_cleanup: checked ? 35 : 0 })}
-                  help={<HelpHint title="Remove mask artifacts" description="Reduces halos and artifacts left after segmentation." />}
+                  help={<HelpHint title="Remove mask artifacts" description="Darkens the light fringe segmentation leaves where the subject met a bright background. The change is a pixel or two wide, so judge it on a real result rather than a thumbnail." />}
                 />
                 <CheckRow
                   label="Hole filling"
@@ -740,6 +757,7 @@ export function JobSettingsPanel({
                   checked={options.edge_feather_radius > 0}
                   onChange={(checked) => setOptions({ edge_feather_radius: checked ? 1 : 0 })}
                   help={<HelpHint title="Edge feathering" description="Softens hard edges around the mask for smoother composites." />}
+                  preview={<OptionPreview name="edge-feather" alt="A cutout edge shown hard, then softened" />}
                 />
               </div>
             </Section>
@@ -755,6 +773,7 @@ export function JobSettingsPanel({
                 hint="Crops empty transparent margins after cutout."
                 checked={options.trim_transparent_bounds}
                 onChange={(checked) => setOptions({ trim_transparent_bounds: checked })}
+                preview={<OptionPreview name="trim-bounds" alt="The same cutout before and after cropping its empty margins" />}
                 help={<HelpHint title="Trim transparent bounds" description="Removes transparent margins after cutout before resizing and export." />}
               />
               <Field
@@ -841,6 +860,7 @@ export function JobSettingsPanel({
               <Field
                 label="Mode"
                 help={<HelpHint title="Background" description="Chooses transparent output or a solid background color." />}
+                preview={<OptionPreview name="solid-bg" alt="A cutout on transparency, then on a solid colour" />}
               >
                 <Select
                   value={options.background_mode}
