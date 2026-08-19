@@ -18,6 +18,10 @@ jobs:
   tauri:
     name: Tauri build (${{ matrix.platform }})
     runs-on: ${{ matrix.platform }}
+    # A healthy build takes under 30 minutes. One release run had apt hang on a
+    # bad Azure mirror and sat there until GitHub's 6 hour default killed it, so
+    # the job now gives up while the failure is still worth looking at.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
