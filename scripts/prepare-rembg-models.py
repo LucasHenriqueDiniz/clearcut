@@ -10,11 +10,12 @@ ROOT = Path(__file__).resolve().parent.parent
 BUILD_CACHE = ROOT / ".build" / "rembg-model-cache"
 TARGET_DIR = ROOT / "src-tauri" / "resources" / "backend" / "models" / "rembg"
 
-# Canonical model files we want to ship in the installer.
+# Only the small default model ships in the installer. The BiRefNet pair used
+# to live here too and accounted for 1.2 GB of the 1.7 GB bundle; they now
+# download the first time someone selects a quality that needs them. Keep this
+# list in sync with included_by_default in app/services/model_catalog.py.
 MODEL_MAP: dict[str, str] = {
     "u2netp": "u2netp.onnx",
-    "birefnet-general-lite": "birefnet-general-lite.onnx",
-    "birefnet-general": "birefnet-general.onnx",
 }
 
 
@@ -64,6 +65,14 @@ def _download_model_if_needed(model_name: str, expected_filename: str) -> Path:
 def main() -> int:
     BUILD_CACHE.mkdir(parents=True, exist_ok=True)
     TARGET_DIR.mkdir(parents=True, exist_ok=True)
+
+    # A local tree can still hold models from an older bundle policy. Leaving
+    # them here would quietly put 1.2 GB back into a developer build, so the
+    # target directory is made to match MODEL_MAP rather than merely contain it.
+    for stale in TARGET_DIR.glob("*.onnx"):
+        if stale.name not in MODEL_MAP.values():
+            print(f"Removing model no longer bundled: {stale.name}")
+            stale.unlink()
 
     for model_name, filename in MODEL_MAP.items():
         source = _download_model_if_needed(model_name, filename)

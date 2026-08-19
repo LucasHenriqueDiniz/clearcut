@@ -72,9 +72,9 @@ const pipelineTabs: Array<{
 ];
 
 const qualityPresetOptions = [
-  { value: "fast", label: "Fast" },
-  { value: "balanced", label: "Balanced" },
-  { value: "high", label: "High" },
+  { value: "fast", label: "Fast · 4 MB model" },
+  { value: "balanced", label: "Balanced · 214 MB model" },
+  { value: "high", label: "High · 928 MB model" },
 ];
 const enhanceEngineOptions = [{ value: "realesrgan", label: "Real-ESRGAN" }];
 const enhanceStrengthOptions = [
@@ -717,7 +717,7 @@ export function JobSettingsPanel({
               <Field
                 label="Quality preset"
                 hint="Balances speed and edge accuracy."
-                help={<HelpHint title="Quality preset" description="Balances cutout speed and edge quality. Best enables alpha matting, which is what recovers hair and fur." />}
+                help={<HelpHint title="Quality preset" description="Balances cutout speed and edge quality. Best enables alpha matting, which is what recovers hair and fur. Only the Fast model ships with the app; the others download once, on first use." />}
                 preview={<OptionPreview name="cutout-quality" alt="The same fur edge cut at Balanced and at Best quality" />}
               >
                 <Select

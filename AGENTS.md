@@ -98,6 +98,15 @@ at once, capped process-wide by a semaphore because jobs themselves also run
 concurrently. Anything called from `_process_file` must be thread-safe or own its own
 per-file state.
 
+**Only the default model ships in the installer.** `scripts/prepare-rembg-models.py`
+bundles U2NetP and nothing else; it also deletes anything else it finds, so a local
+build cannot quietly reship the 1.2 GB of BiRefNet that used to be in there. Every
+other model downloads the first time it is asked for, through
+`model_installer_service.ensure_installed`, which gates concurrent requests per model
+so parallel workers do not each start the same download. `included_by_default` in
+`model_catalog.py` and `MODEL_MAP` in the script have to agree, and `size_mb` is what
+the user reads before committing to a download - measure it, don't estimate it.
+
 **Frontend polling must be cancellable.** Use `useJobPolling`. It aborts the in-flight
 request, cancels on unmount, supersedes a previous poll, and resolves only at a
 terminal state. A bare recursive `setTimeout` leaks a timer chain per job.
@@ -125,6 +134,11 @@ rather than editing the images. Options whose effect is a pixel or two wide
 (alpha threshold, halo cleanup) deliberately have no tile: magnified enough to
 see, they stop looking like the option and start looking like noise. They carry
 wording instead.
+
+App icons are generated too, by `scripts/make-app-icons.py` from `icon.png` at the
+repo root. It trims the master artwork to the squircle, drops the white canvas and
+its drop shadow, and rebuilds the alpha from a rounded-rect mask so the edge stays
+clean at 16px. Edit the master and rerun it; don't hand-edit `frontend/public/`.
 
 three.js is lazy-loaded in `job-queue.tsx` — it draws a decorative backdrop and is
 worth about half the bundle. Keep it behind `lazy()`.

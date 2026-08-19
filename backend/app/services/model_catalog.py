@@ -10,6 +10,13 @@ from app.storage.model_state_store import model_state_store
 logger = logging.getLogger(__name__)
 
 
+# included_by_default marks the models that ship inside the installer. Only
+# U2NetP does: it is 4 MB, so the app still works offline the moment it is
+# installed. Everything else downloads the first time it is actually selected,
+# which is what keeps a 928 MB file out of everyone's download.
+#
+# size_mb is shown in Models before the user commits to a download. Measure it
+# against the real .onnx rather than guessing.
 REMBG_MODEL_CATALOG: list[dict] = [
     {
         "id": "u2net",
@@ -32,7 +39,7 @@ REMBG_MODEL_CATALOG: list[dict] = [
         "engine": "rembg",
         "name": "U2NetP",
         "description": "Lightweight rembg model with fast startup and lower memory use.",
-        "size_mb": 4.7,
+        "size_mb": 4.4,
         "filename": "u2netp.onnx",
         "installable": True,
         "included_by_default": True,
@@ -61,11 +68,12 @@ REMBG_MODEL_CATALOG: list[dict] = [
         "engine": "rembg",
         "name": "BiRefNet General Lite",
         "description": "Balanced cutout model for general product and photo workflows.",
-        "size_mb": 66.0,
+        "size_mb": 214.0,
         "filename": "birefnet-general-lite.onnx",
         "installable": True,
-        "included_by_default": True,
+        "included_by_default": False,
         "runtime_ready": True,
+        "status_note": "Downloads on first use, or install it here ahead of time.",
         "download_url": None,
         "checksum": None,
     },
@@ -75,11 +83,12 @@ REMBG_MODEL_CATALOG: list[dict] = [
         "engine": "rembg",
         "name": "BiRefNet General",
         "description": "Higher-quality edge detail for difficult cutouts with more memory use.",
-        "size_mb": 132.0,
+        "size_mb": 928.0,
         "filename": "birefnet-general.onnx",
         "installable": True,
-        "included_by_default": True,
+        "included_by_default": False,
         "runtime_ready": True,
+        "status_note": "Nearly a gigabyte. Downloads on first use, or install it here ahead of time.",
         "download_url": None,
         "checksum": None,
     },

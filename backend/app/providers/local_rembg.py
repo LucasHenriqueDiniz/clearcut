@@ -1,5 +1,6 @@
 import gc
 import io
+import logging
 import os
 import threading
 from collections import OrderedDict
@@ -10,6 +11,8 @@ from app.providers.base import BackgroundRemovalProvider, ProviderResult
 from app.core.config import settings
 from app.services.model_catalog import model_catalog_service
 from app.storage.model_state_store import model_state_store
+
+logger = logging.getLogger(__name__)
 
 PRESET_CONFIG = {
     "fast": {
@@ -130,6 +133,17 @@ def _ensure_model_exists(model_name: str) -> None:
             f"Unsupported rembg model '{model_name}'. "
             f"Allowed local models: {', '.join(sorted(model_catalog_service.catalog.keys()))}"
         )
+    if target.exists():
+        return
+
+    # Only the small default model ships in the installer. Everything else is
+    # fetched the first time it is asked for, which is what keeps a 900 MB
+    # model out of the download for people who never select it.
+    from app.services.model_installer import model_installer_service
+
+    logger.info("rembg model %s is missing; downloading it on first use", model_name)
+    model_installer_service.ensure_installed(model_name)
+
     if not target.exists():
         raise RuntimeError(
             f"Local rembg model not installed: {model_name}. "

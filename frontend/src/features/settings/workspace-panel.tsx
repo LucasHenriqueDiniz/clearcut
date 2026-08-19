@@ -21,10 +21,13 @@ const FORMATS = [
   { value: "avif", label: "AVIF · smallest, slower" },
 ];
 
+// Only the Fast model ships with the app; the others are fetched on first use.
+// Naming the size beats naming the download, because it stays true after the
+// model is already on disk.
 const QUALITY = [
-  { value: "fast", label: "Fast" },
-  { value: "balanced", label: "Balanced" },
-  { value: "hq", label: "Best" },
+  { value: "fast", label: "Fast · 4 MB model" },
+  { value: "balanced", label: "Balanced · 214 MB model" },
+  { value: "hq", label: "Best · 928 MB model" },
 ];
 
 /**
@@ -107,7 +110,8 @@ export function WorkspacePanel({
                   }
                 />
                 <span className="mt-1 block text-[10px] leading-snug text-zinc-600">
-                  Higher quality is slower and uses a larger model.
+                  Higher quality is slower and uses a larger model. Models download once,
+                  on first use; manage them under Settings &rarr; Models.
                 </span>
               </label>
             ) : null}

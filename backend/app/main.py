@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 import logging
+import threading
 from pathlib import Path
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -70,11 +71,34 @@ def _seed_allowed_output_roots() -> None:
             output_path_guard.register_root(Path(output_path).parent)
 
 
+def _prefetch_default_cutout_model() -> None:
+    """Fetch the model the default quality needs, once, in the background.
+
+    The installer only carries U2NetP, so on a fresh machine the default
+    quality has nothing to run on. Downloading it here means the first job
+    starts immediately instead of stalling on a 200 MB download with no
+    explanation. The larger models stay strictly on demand.
+    """
+    from app.providers.local_rembg import model_for_quality_preset
+    from app.services.model_installer import model_installer_service
+
+    model_id = model_for_quality_preset("balanced")
+    try:
+        model_installer_service.ensure_installed(model_id)
+    except Exception as exc:
+        # Offline is a normal state for this app; the job path retries and
+        # reports properly if the model is still missing when it is needed.
+        logger.info("Could not prefetch cutout model %s: %s", model_id, exc)
+
+
 @app.on_event("startup")
 def start_background_services() -> None:
     model_storage_service.load_persisted_root()
     _seed_allowed_output_roots()
     watch_folder_service.start()
+    threading.Thread(
+        target=_prefetch_default_cutout_model, name="prefetch-default-model", daemon=True
+    ).start()
 
 
 @app.on_event("shutdown")
