@@ -2,7 +2,7 @@
   "name": "clearcut-frontend",
   "private": true,
   "type": "module",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "homepage": "https://github.com/LucasHenriqueDiniz/clearcut",
   "author": {
     "name": "Lucas Henrique Diniz",
