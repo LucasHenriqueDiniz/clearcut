@@ -4,6 +4,48 @@ All notable changes to ClearCut are documented here. Versions follow
 [semantic versioning](https://semver.org/); until 1.0 the minor number carries
 breaking changes.
 
+## v0.4.0 — 2026-08-19
+
+### The installer stops carrying 1.2 GB of model weights
+
+ClearCut shipped every bundled cutout model inside the installer, including
+BiRefNet General at 928 MB, so everyone paid for weights most people never
+select. Only U2NetP (4 MB) ships now — enough for the app to work offline the
+moment it is installed — and everything else downloads the first time it is
+actually asked for. The bundled model directory went from 1145 MB to 4 MB.
+
+- `model_installer_service.ensure_installed` is a new synchronous fetch that
+  gates concurrent requests per model. Jobs process files in parallel, so
+  without it several workers would start the same download at once.
+- The backend prefetches the default quality's model in the background at
+  startup, so a first job does not stall on a 200 MB download with no
+  explanation. The 928 MB model stays strictly on demand.
+- Catalog sizes were wrong where it mattered most: BiRefNet General is 928 MB,
+  not 132, and the Lite variant is 214 MB, not 66. The quality selectors now
+  name the model size, which is the number you are really choosing between.
+
+### New app icon
+
+The master artwork is a squircle on a white canvas with a drop shadow, and both
+were being shipped as part of the icon. `scripts/make-app-icons.py` trims to the
+squircle, drops the outermost ring so no pale fringe survives on a dark taskbar,
+and rebuilds the alpha from a 20% rounded-rect mask — then writes the whole set
+from a single 1024px master.
+
+### The Linux AppImage builds for the first time
+
+Three releases in a row failed on `failed to run linuxdeploy` with no further
+output. Two real causes, neither of them what the previous fix attempt assumed:
+
+- linuxdeploy walks every ELF in the AppDir, including PyInstaller's `_internal`,
+  and cannot resolve auditwheel's mangled `libquadmath-<hash>.so` because it does
+  not follow RPATH `$ORIGIN`. Those directories are now on `LD_LIBRARY_PATH`.
+- `libtbb.so.12`, which numba's `tbbpool.so` links, was not installed on the
+  runner at all.
+
+The bundler only forwards linuxdeploy's stderr under `--verbose`; without it the
+failure was 27 seconds of silence.
+
 ## v0.3.0 — 2026-08-19
 
 ### Frontend rebuilt on Vite
