@@ -1,7 +1,6 @@
 # Node
 frontend/node_modules
-frontend/.next
-frontend/.turbo
+frontend/dist
 frontend/tsconfig.tsbuildinfo
 # Stale, unused: this project installs with npm (package-lock.json).
 frontend/pnpm-lock.yaml
@@ -17,13 +16,15 @@ backend/data/providers.json
 backend/logs/*
 backend/models/*
 # The backend resolves its data dirs relative to the working directory, so
-# launching it from the repo root creates these at the top level instead.
-# They hold databases, downloaded models and provider settings - never commit them.
-/data/
-/logs/
-/models/
-/outputs/
-/uploads/
+# whichever directory it was launched from ends up holding them. They contain
+# databases, downloaded models (hundreds of MB) and provider settings with API
+# keys - never commit them, wherever they land.
+data/
+logs/
+models/
+outputs/
+uploads/
+!runtime/.gitkeep
 backend/uploads/*
 backend/outputs/*
 !backend/outputs/.gitkeep
@@ -36,7 +37,6 @@ src-tauri/target
 src-tauri/resources/backend/*
 !src-tauri/resources/backend/.gitkeep
 .build
-frontend/out
 .frontend-node_modules-backup
 frontend/.git.bak
 

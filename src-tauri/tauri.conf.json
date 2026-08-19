@@ -7,7 +7,7 @@
     "beforeDevCommand": "cd ../frontend && npm run dev",
     "beforeBuildCommand": "python ../scripts/build-backend-sidecar.py && cd ../frontend && npm run build",
     "devUrl": "http://localhost:3000",
-    "frontendDist": "../frontend/out"
+    "frontendDist": "../frontend/dist"
   },
   "app": {
     "security": {

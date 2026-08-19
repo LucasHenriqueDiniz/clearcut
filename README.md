@@ -75,8 +75,8 @@ Main use cases:
 ## Stack
 
 - Frontend:
-  - Next.js 15
   - React 19
+  - Vite
   - TypeScript
   - Tailwind CSS
   - Zustand
@@ -118,14 +118,15 @@ backend/
   uploads/
 
 frontend/
-  app/
-  components/
-  features/
-  hooks/
-  lib/
-  services/
-  stores/
-  types/
+  public/
+  src/
+    components/
+    features/
+    hooks/
+    lib/
+    services/
+    stores/
+    types/
 
 src-tauri/
   capabilities/
@@ -198,7 +199,7 @@ npm run tauri:build
 
 ## Development
 
-The frontend types in `frontend/types/api.ts` are generated from the backend's
+The frontend types in `frontend/src/types/api.ts` are generated from the backend's
 OpenAPI document, so they cannot drift from the Pydantic schemas. After changing
 anything under `backend/app/schemas/`, regenerate them:
 
@@ -206,10 +207,10 @@ anything under `backend/app/schemas/`, regenerate them:
 cd frontend && npm run gen:api
 ```
 
-Typecheck before opening a PR:
+Lint and typecheck before opening a PR:
 
 ```bash
-cd frontend && npx tsc --noEmit
+cd frontend && npm run lint && npm run typecheck
 ```
 
 `AGENTS.md` documents the architecture invariants and is read by coding agents
