@@ -22,7 +22,10 @@ jobs:
       fail-fast: false
       matrix:
         platform:
-          - ubuntu-latest
+          # AppImage bundling: linuxdeploy fails on the 24.04 image that
+          # ubuntu-latest now points at, and building on the older glibc also
+          # makes the AppImage run on more distros.
+          - ubuntu-22.04
           - windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,7 +45,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install Linux build deps
-        if: matrix.platform == 'ubuntu-latest'
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -74,9 +77,12 @@ jobs:
           fi
 
       - name: Build Tauri app (Linux)
-        if: matrix.platform == 'ubuntu-latest'
+        if: matrix.platform == 'ubuntu-22.04'
         env:
           APPIMAGE_EXTRACT_AND_RUN: "1"
+          # linuxdeploy's strip pass is what actually fails; the bundle works
+          # without it.
+          NO_STRIP: "true"
           RUST_BACKTRACE: "1"
           TAURI_BUNDLER_DEBUG: "true"
         run: npm run tauri:build
