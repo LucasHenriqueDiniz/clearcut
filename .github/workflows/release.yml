@@ -76,17 +76,30 @@ jobs:
             test -f src-tauri/resources/backend/ipu-backend/ipu-backend
           fi
 
+      # linuxdeploy writes its diagnostics to stderr and the bundler only
+      # forwards them with --verbose. Without it the failure is 27 seconds of
+      # silence followed by "failed to run linuxdeploy".
       - name: Build Tauri app (Linux)
         if: matrix.platform == 'ubuntu-22.04'
         env:
           APPIMAGE_EXTRACT_AND_RUN: "1"
-          # linuxdeploy's strip pass is what actually fails; the bundle works
-          # without it.
           NO_STRIP: "true"
           RUST_BACKTRACE: "1"
-          TAURI_BUNDLER_DEBUG: "true"
-        run: npm run tauri:build
+        run: npm run tauri:build -- --verbose
         working-directory: frontend
+
+      # linuxdeploy leaves the half-built AppDir behind. What it does and does
+      # not contain is the other half of the diagnosis.
+      - name: Dump AppImage build tree on failure
+        if: failure() && matrix.platform == 'ubuntu-22.04'
+        run: |
+          appdir=src-tauri/target/release/bundle/appimage
+          echo "--- tree ---"
+          find "$appdir" -maxdepth 3 2>/dev/null | head -60 || echo "no appimage dir"
+          echo "--- biggest files ---"
+          du -ah "$appdir" 2>/dev/null | sort -rh | head -20
+          echo "--- disk ---"
+          df -h /
 
       - name: Build Tauri app (Windows)
         if: matrix.platform == 'windows-latest'
