@@ -44,6 +44,9 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      # libtbb12: numba ships tbbpool.so, which links libtbb.so.12. That
+      # threading layer is optional at runtime, but linuxdeploy refuses to
+      # bundle an ELF whose dependency it cannot resolve.
       - name: Install Linux build deps
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -54,6 +57,7 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libfuse2 \
+            libtbb12 \
             patchelf \
             desktop-file-utils
 
