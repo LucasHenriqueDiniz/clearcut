@@ -1,7 +1,7 @@
 # ClearCut — agent guide
 
 Desktop-first batch background removal and image export. Tauri (Rust shell) wraps a
-Next.js frontend that talks HTTP to a local FastAPI backend. The backend does all
+React frontend (Vite) that talks HTTP to a local FastAPI backend. The backend does all
 image work; the frontend never processes pixels except in the mask editor.
 
 This file is the shared instruction set for coding agents (Claude Code, OpenCode,
@@ -17,7 +17,8 @@ venv active (`backend/.venv`).
 | Full desktop app (dev) | `cd frontend && npm run tauri:dev` |
 | Backend alone | `python backend/run.py` |
 | Frontend alone | `cd frontend && npm run dev` |
-| **Typecheck (the real gate)** | `cd frontend && npx tsc --noEmit` |
+| Typecheck | `cd frontend && npm run typecheck` |
+| Lint | `cd frontend && npm run lint` |
 | Regenerate API types | `cd frontend && npm run gen:api` |
 | Build installer | `cd frontend && npm run tauri:build` |
 | Docker web stack | `make up` / `make down` |
@@ -25,11 +26,17 @@ venv active (`backend/.venv`).
 `make help` lists the rest.
 
 **Use npm, not pnpm.** `frontend/package-lock.json` is the tracked lockfile. A stray
-untracked `pnpm-lock.yaml` sits in the tree; ignore it and never install from it.
+`pnpm-lock.yaml` sits in the tree, now gitignored; never install from it.
 
-**`npm run lint` is currently broken** (missing `@eslint-community/eslint-utils` in
-`node_modules`). Don't take its failure as a signal about your change. `tsc --noEmit`
-is the check that matters — it must be clean before you call work done.
+Both `npm run lint` and `npm run typecheck` must be clean before you call work done;
+`npm run build` runs the typecheck itself. If either tool fails to *load a module*
+rather than reporting on your code, `node_modules` is stale — reinstall from scratch
+instead of working around it.
+
+Three `react-hooks` rules from the React Compiler ruleset are `warn`, not `error`:
+`set-state-in-effect`, `purity` and `immutability`. They flag patterns that predate
+this ESLint config and that Next's preset never checked. The warnings are real and
+worth fixing; they are just not a build gate. Don't add new ones.
 
 ## Layout
 
@@ -43,13 +50,15 @@ backend/app/
   storage/      SQLite stores + filesystem + provider settings
   utils/        paths.py (path guard), naming.py (output filenames)
 frontend/
-  app/page.tsx  The main screen. Large; prefer extracting into features/ or hooks/
-  features/     Feature-scoped UI (jobs, settings, history, uploads, previews)
-  hooks/        Reusable stateful logic (use-job-polling)
-  services/api.ts  The only place that calls the backend
-  stores/       zustand
-  types/api.ts  GENERATED — never edit by hand
-  types/index.ts   Public type surface; aliases types/api.ts
+  index.html    Vite entry document
+  src/main.tsx  React root: fonts, globals.css, providers
+  src/App.tsx   The main screen. Large; prefer extracting into features/ or hooks/
+  src/features/ Feature-scoped UI (jobs, settings, history, uploads, previews)
+  src/hooks/    Reusable stateful logic (use-job-polling)
+  src/services/api.ts  The only place that calls the backend
+  src/stores/   zustand
+  src/types/api.ts  GENERATED — never edit by hand
+  src/types/index.ts   Public type surface; aliases src/types/api.ts
 src-tauri/      Rust shell; spawns the backend as a sidecar
 ```
 
@@ -59,10 +68,10 @@ These exist for reasons that aren't visible from the code alone. Breaking one
 reintroduces a bug that was already fixed.
 
 **Types are generated from the backend.** After changing anything in
-`backend/app/schemas/`, run `npm run gen:api`. `frontend/types/index.ts` aliases the
+`backend/app/schemas/`, run `npm run gen:api`. `frontend/src/types/index.ts` aliases
 generated schemas; hand-writing a backend type there defeats the whole mechanism.
 Pydantic fields with a default come out optional in the OpenAPI document even though
-responses always carry them — `types/index.ts` re-requires those three explicitly.
+responses always carry them — `src/types/index.ts` re-requires those three explicitly.
 
 **Any endpoint that serves or reveals a file path must go through
 `app.utils.paths.resolve_served_path`.** The backend listens on localhost with no
@@ -93,13 +102,28 @@ per-file state.
 request, cancels on unmount, supersedes a previous poll, and resolves only at a
 terminal state. A bare recursive `setTimeout` leaks a timer chain per job.
 
-**Only GET requests may be retried.** `services/api.ts` enforces this — replaying a
+**Only GET requests may be retried.** `src/services/api.ts` enforces this — replaying a
 failed `POST /jobs` creates a duplicate job.
+
+## Frontend build
+
+Vite, not Next. The app has one screen and no server, so there is no router, no SSR
+and no `"use client"` — if you reach for a Next API, it is gone on purpose. `@/*`
+resolves to `src/*` via tsconfig, which Vite reads directly.
+
+Fonts are bundled from the `@fontsource*` packages imported in `main.tsx`. Don't
+reintroduce a font CDN: the app's whole pitch is running offline, and that has to
+include building it.
+
+Environment values come from `import.meta.env.VITE_*`, not `process.env`.
+
+three.js is lazy-loaded in `job-queue.tsx` — it draws a decorative backdrop and is
+worth about half the bundle. Keep it behind `lazy()`.
 
 ## Two runtimes
 
 The frontend runs either inside Tauri or as a plain web page, and the difference is
-load-bearing. `lib/platform.ts` detects the desktop shell via `__TAURI_INTERNALS__`
+load-bearing. `src/lib/platform.ts` detects the desktop shell via `__TAURI_INTERNALS__`
 and is the only module allowed to reach for native APIs — file dialogs, real
 filesystem paths, the backend URL from the sidecar. Anything filesystem-shaped needs
 a web fallback or an explicit desktop-only gate; assuming Tauri breaks `npm run dev`,
@@ -124,10 +148,10 @@ the tree are the symptom.
   where the reason isn't obvious from reading the code.
 - Backend code targets Windows first. Watch for `os.replace` semantics, path casing
   (`os.path.normcase`), and file handles held open.
-- The UI is Tailwind + shadcn/ui primitives in `components/ui`. Feature UI lives in
-  `features/<domain>/`.
-- `services/api.ts` is the only module that talks to the backend.
-- Use `logEvent` from `lib/dev-log.ts`, not `console.log`. It feeds the in-app dev
+- The UI is Tailwind + shadcn/ui primitives in `src/components/ui`. Feature UI lives in
+  `src/features/<domain>/`.
+- `src/services/api.ts` is the only module that talks to the backend.
+- Use `logEvent` from `src/lib/dev-log.ts`, not `console.log`. It feeds the in-app dev
   console, which is the only debug channel visible in a packaged desktop build.
 
 ## Verifying changes
@@ -135,7 +159,8 @@ the tree are the symptom.
 There is **no test suite** — neither pytest nor a frontend runner. Don't claim a
 change is verified because it typechecks.
 
-- Frontend: `npx tsc --noEmit`, then exercise the path in the running app.
+- Frontend: `npm run lint && npm run typecheck`, then exercise the path in the
+  running app (`npm run tauri:dev`).
 - Backend: write a throwaway script against the real modules and run it. Heavy deps
   (`rembg`, `onnxruntime`, `scipy`) must be installed for anything touching the
   pipeline to even import.
