@@ -190,7 +190,7 @@ function GeneralPane() {
       <Section icon={Info} title="About" description="Build and version information">
         <SettingRow
           title="App version"
-          value={<span className="font-mono text-[11px] text-zinc-500">0.1.0</span>}
+          value={<span className="font-mono text-[11px] text-zinc-500">{__APP_VERSION__}</span>}
         />
         <SettingRow
           title="Architecture"

@@ -55,7 +55,7 @@ const ACCEPTED_EXTENSIONS = new Set([
   "heif",
   "avif",
 ]);
-const APP_VERSION = "0.1.0";
+const APP_VERSION = __APP_VERSION__;
 const PROJECT_GITHUB_URL = "https://github.com/LucasHenriqueDiniz/clearcut";
 const LATEST_RELEASE_URL = "https://github.com/LucasHenriqueDiniz/clearcut/releases/latest";
 
