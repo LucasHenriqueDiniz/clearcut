@@ -76,16 +76,27 @@ jobs:
             test -f src-tauri/resources/backend/ipu-backend/ipu-backend
           fi
 
-      # linuxdeploy writes its diagnostics to stderr and the bundler only
-      # forwards them with --verbose. Without it the failure is 27 seconds of
-      # silence followed by "failed to run linuxdeploy".
+      # linuxdeploy walks every ELF in the AppDir, including PyInstaller's
+      # _internal. There it finds libgfortran, whose DT_NEEDED points at
+      # auditwheel's mangled libquadmath-<hash>.so, a file that lives inside
+      # scipy.libs/numpy.libs and resolves at runtime only through RPATH
+      # $ORIGIN, which linuxdeploy does not follow. Putting those directories
+      # on LD_LIBRARY_PATH is what lets it resolve them.
+      #
+      # --verbose is what makes linuxdeploy's stderr visible at all; without
+      # it a failure here is 27 seconds of silence.
       - name: Build Tauri app (Linux)
         if: matrix.platform == 'ubuntu-22.04'
         env:
           APPIMAGE_EXTRACT_AND_RUN: "1"
           NO_STRIP: "true"
           RUST_BACKTRACE: "1"
-        run: npm run tauri:build -- --verbose
+        run: |
+          sidecar="$GITHUB_WORKSPACE/src-tauri/resources/backend/ipu-backend"
+          libdirs=$(find "$sidecar" -name "*.so*" | xargs -r -n1 dirname | sort -u | paste -sd:)
+          echo "sidecar library dirs: $libdirs"
+          export LD_LIBRARY_PATH="$libdirs:$LD_LIBRARY_PATH"
+          npm run tauri:build -- --verbose
         working-directory: frontend
 
       # linuxdeploy leaves the half-built AppDir behind. What it does and does
@@ -95,9 +106,9 @@ jobs:
         run: |
           appdir=src-tauri/target/release/bundle/appimage
           echo "--- tree ---"
-          find "$appdir" -maxdepth 3 2>/dev/null | head -60 || echo "no appimage dir"
+          find "$appdir" -maxdepth 3 | head -60 || echo "no appimage dir"
           echo "--- biggest files ---"
-          du -ah "$appdir" 2>/dev/null | sort -rh | head -20
+          du -ah "$appdir" | sort -rh | head -20
           echo "--- disk ---"
           df -h /
 
