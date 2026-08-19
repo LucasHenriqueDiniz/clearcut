@@ -8,8 +8,10 @@ import { cn } from "@/lib/utils";
 import { useDefaultExportDirectory } from "@/lib/export-directory";
 
 import { WatchFoldersSettings } from "./watch-folders-settings";
+import { ModelsSettings } from "./models-settings";
+import { ProvidersSettings } from "./providers-settings";
 
-type SettingsTab = "general" | "watch-folders" | "performance";
+export type SettingsTab = "general" | "models" | "providers" | "watch-folders" | "performance";
 type Props = {
   activeTab?: SettingsTab;
   onActiveTabChange?: (tab: SettingsTab) => void;
@@ -240,8 +242,13 @@ function PerformancePane() {
 }
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
+// Models and Providers used to be top-level destinations. They are settings,
+// not places you work, so they live here and the header keeps only Workspace,
+// History and Settings.
 const tabs = [
   { id: "general" as const, label: "General" },
+  { id: "models" as const, label: "Models" },
+  { id: "providers" as const, label: "Providers" },
   { id: "watch-folders" as const, label: "Watch Folders" },
   { id: "performance" as const, label: "Performance" },
 ];
@@ -275,6 +282,12 @@ export function AppSettings({ activeTab: controlledActiveTab, onActiveTabChange 
       </div>
 
       {activeTab === "general" ? <GeneralPane /> : null}
+      {activeTab === "models" ? (
+        <div className="min-h-0 flex-1 overflow-auto"><ModelsSettings /></div>
+      ) : null}
+      {activeTab === "providers" ? (
+        <div className="min-h-0 flex-1 overflow-auto"><ProvidersSettings /></div>
+      ) : null}
       {activeTab === "watch-folders" ? <WatchFoldersSettings /> : null}
       {activeTab === "performance" ? <PerformancePane /> : null}
     </div>

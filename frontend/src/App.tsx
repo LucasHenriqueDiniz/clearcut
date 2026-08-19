@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Activity, Boxes, ChevronDown, Clock3, Download, FolderInput, FolderOpen, Github, PanelLeft, Play, Scissors, Settings2, SlidersHorizontal, Sparkles, Upload, WandSparkles } from "lucide-react";
+import { Activity, ChevronDown, Clock3, Download, FolderInput, FolderOpen, Github, PanelLeft, Play, Scissors, Settings2, Sparkles, Upload, WandSparkles } from "lucide-react";
 import { HistoryList } from "@/features/history/history-list";
 import { JobQueue }       from "@/features/jobs/job-queue";
 import { MaskEditorModal } from "@/features/jobs/mask-editor-modal";
 import { JobSettingsPanel } from "@/features/settings/job-settings-panel";
-import { AppSettings } from "@/features/settings/app-settings";
-import { ModelsSettings } from "@/features/settings/models-settings";
-import { ProvidersSettings } from "@/features/settings/providers-settings";
+import { AppSettings, type SettingsTab } from "@/features/settings/app-settings";
 import { Button } from "@/components/ui";
 import { ToastItem, ToastStack } from "@/components/toast-stack";
 import { DevConsole } from "@/components/dev-console";
-import { WindowTitlebar } from "@/components/window-titlebar";
+import { AppHeader, type MainTab } from "@/components/app-header";
 import {
   getBackendBaseUrl,
   expandDesktopPaths,
@@ -40,6 +38,7 @@ import { useJobPolling } from "@/hooks/use-job-polling";
 import type { UploadItem } from "@/types";
 import { useBackendBaseUrl } from "@/lib/platform";
 import { logEvent } from "@/lib/dev-log";
+import { cn } from "@/lib/utils";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const ACCEPTED_EXTENSIONS = new Set([
@@ -116,8 +115,8 @@ export default function App() {
   const [closingBackend, setClosingBackend] = useState(false);
   const [engineStarting, setEngineStarting] = useState(false);
 
-  const [activeTab,    setActiveTab]    = useState<"workspace" | "providers" | "models" | "settings" | "history">("workspace");
-  const [settingsTab, setSettingsTab] = useState<"general" | "watch-folders" | "performance">("general");
+  const [activeTab,    setActiveTab]    = useState<MainTab>("workspace");
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
   const [workspaceTab, setWorkspaceTab] = useState<"input" | "preprocess" | "cutout" | "postprocess" | "export">("input");
   const [refineUploadId, setRefineUploadId] = useState<string>();
   const [settingsPanelCollapsed, setSettingsPanelCollapsed] = useState(false);
@@ -384,12 +383,6 @@ export default function App() {
         return { root: "Workspace", leaf: "Postprocess", icon: WandSparkles };
       }
       return { root: "Workspace", leaf: "Export", icon: Download };
-    }
-    if (activeTab === "providers") {
-      return { root: "Providers", leaf: "", icon: SlidersHorizontal };
-    }
-    if (activeTab === "models") {
-      return { root: "Models", leaf: "", icon: Boxes };
     }
     if (activeTab === "settings") {
       return { root: "Settings", leaf: "", icon: Settings2 };
@@ -836,76 +829,11 @@ export default function App() {
         }}
       >
         <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
-          <WindowTitlebar
+          <AppHeader
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            processing={isProcessing}
             onMouseDown={(event) => handleTitlebarMouseDown(event)}
-            left={(
-              <div className="flex h-full min-w-0 items-center">
-                <div className="flex h-full items-center gap-2 pr-4">
-                  <img src="/icon.png" alt="ClearCut logo" className="h-[18px] w-[18px] rounded-[5px] border border-white/[0.12] object-cover" />
-                  <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-600">ClearCut</span>
-                </div>
-                <div className="flex h-full items-center border-l border-r border-white/[0.07]">
-                  <button
-                    type="button"
-                    className={`relative h-full px-4 text-[11px] ${activeTab === "workspace" ? "bg-white/[0.022] text-zinc-100" : "text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300"}`}
-                    onMouseDown={(event) => {
-                      event.stopPropagation();
-                      handleTitlebarMouseDown(event, () => setActiveTab("workspace"));
-                    }}
-                    onClick={() => !isDesktopMode && setActiveTab("workspace")}
-                  >
-                    {isProcessing ? (
-                      <span className="absolute left-2 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-indigo-400 shadow-[0_0_10px_rgba(99,102,241,0.7)] animate-pulse" />
-                    ) : null}
-                    Workspace
-                  </button>
-                  <button
-                    type="button"
-                    className={`relative h-full border-l border-white/[0.07] px-4 text-[11px] ${activeTab === "providers" ? "bg-white/[0.022] text-zinc-100" : "text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300"}`}
-                    onMouseDown={(event) => {
-                      event.stopPropagation();
-                      handleTitlebarMouseDown(event, () => setActiveTab("providers"));
-                    }}
-                    onClick={() => !isDesktopMode && setActiveTab("providers")}
-                  >
-                    Providers
-                  </button>
-                  <button
-                    type="button"
-                    className={`relative h-full border-l border-white/[0.07] px-4 text-[11px] ${activeTab === "models" ? "bg-white/[0.022] text-zinc-100" : "text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300"}`}
-                    onMouseDown={(event) => {
-                      event.stopPropagation();
-                      handleTitlebarMouseDown(event, () => setActiveTab("models"));
-                    }}
-                    onClick={() => !isDesktopMode && setActiveTab("models")}
-                  >
-                    Models
-                  </button>
-                  <button
-                    type="button"
-                    className={`relative h-full border-l border-white/[0.07] px-4 text-[11px] ${activeTab === "settings" ? "bg-white/[0.022] text-zinc-100" : "text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300"}`}
-                    onMouseDown={(event) => {
-                      event.stopPropagation();
-                      handleTitlebarMouseDown(event, () => setActiveTab("settings"));
-                    }}
-                    onClick={() => !isDesktopMode && setActiveTab("settings")}
-                  >
-                    Settings
-                  </button>
-                  <button
-                    type="button"
-                    className={`relative h-full border-l border-white/[0.07] px-4 text-[11px] ${activeTab === "history" ? "bg-white/[0.022] text-zinc-100" : "text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300"}`}
-                    onMouseDown={(event) => {
-                      event.stopPropagation();
-                      handleTitlebarMouseDown(event, () => setActiveTab("history"));
-                    }}
-                    onClick={() => !isDesktopMode && setActiveTab("history")}
-                  >
-                    History
-                  </button>
-                </div>
-              </div>
-            )}
           />
           <main className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
             <div className="flex h-[46px] w-full items-center gap-3 border-b border-white/[0.07] bg-[#111114] pr-4">
@@ -989,14 +917,18 @@ export default function App() {
               ) : null}
             </div>
 
-            <AnimatePresence mode="wait" initial={false}>
+            {/* No AnimatePresence here. `mode="wait"` holds the outgoing pane
+                until its exit finishes, and when that never resolves the
+                incoming pane never mounts - the tab looked switched (the
+                breadcrumb updated) while the old screen stayed on top. A pane
+                swap does not need a slide; a fade on mount is enough. */}
+            <div className="min-h-0 w-full flex-1 overflow-hidden">
               <motion.div
                 key={activeTab}
-                initial={{ opacity: 0, x: 18 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -18 }}
-                transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                className="min-h-0 w-full flex-1 overflow-hidden"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.14, ease: [0.22, 1, 0.36, 1] }}
+                className="h-full min-h-0 w-full overflow-hidden"
               >
                 {activeTab === "workspace" ? (
                   <div className={`grid min-h-0 h-full w-full overflow-hidden ${settingsPanelCollapsed ? "grid-cols-[0_minmax(0,1fr)]" : "grid-cols-[320px_minmax(0,1fr)]"}`}>
@@ -1043,16 +975,6 @@ export default function App() {
                   </div>
                 ) : null}
 
-                {activeTab === "providers" ? (
-                  <div className="min-h-0 h-full w-full overflow-auto">
-                    <ProvidersSettings />
-                  </div>
-                ) : null}
-                {activeTab === "models" ? (
-                  <div className="min-h-0 h-full w-full overflow-auto">
-                    <ModelsSettings />
-                  </div>
-                ) : null}
                 {activeTab === "settings" ? (
                   <div className="min-h-0 h-full w-full overflow-auto">
                     <AppSettings activeTab={settingsTab} onActiveTabChange={setSettingsTab} />
@@ -1064,42 +986,60 @@ export default function App() {
                   </div>
                 ) : null}
               </motion.div>
-            </AnimatePresence>
+            </div>
 
-            <div className="flex h-[22px] items-center gap-3 border-t border-white/[0.07] bg-[#090909] px-[14px]">
-              <div className={`flex items-center gap-1 font-mono text-[10px] ${isProcessing ? "text-indigo-300" : "text-zinc-500"}`}>
-                <span className={`inline-block h-1.5 w-1.5 rounded-full ${isProcessing ? "animate-pulse bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.7)]" : "bg-emerald-400"}`} />
-                <span>{isProcessing ? "Engine running" : "Engine ready"}</span>
+            <footer className="flex h-[26px] shrink-0 items-center gap-4 border-t border-white/[0.07] bg-[#090909] px-3.5 font-mono text-[10px]">
+              {/* Left: what the engine is doing right now. */}
+              <div className={cn("flex items-center gap-1.5", isProcessing ? "text-indigo-300" : "text-zinc-400")}>
+                <span
+                  className={cn(
+                    "inline-block h-1.5 w-1.5 rounded-full",
+                    isProcessing
+                      ? "animate-pulse bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.7)]"
+                      : "bg-emerald-400",
+                  )}
+                />
+                <span>{isProcessing ? "Processing" : "Ready"}</span>
               </div>
+
+              <span className="h-3 w-px bg-white/[0.09]" />
+
+              {/* Middle: the configuration those results came from. */}
               <button
                 type="button"
-                onClick={() => void openExternalLink(PROJECT_GITHUB_URL)}
-                className="inline-flex items-center gap-1 rounded-[4px] border border-white/[0.07] px-1.5 py-0.5 font-mono text-[10px] text-zinc-500 transition-colors hover:border-white/[0.12] hover:bg-white/[0.05] hover:text-zinc-200"
+                onClick={() => setActiveTab("workspace")}
+                title="Open the workspace settings"
+                className="min-w-0 truncate text-zinc-500 transition-colors hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400/70"
               >
-                <Github className="h-3 w-3" />
-                GitHub
+                {options.cutout_model_id}
+                <span className="text-zinc-700"> · </span>
+                {options.enhance_level === "off" ? "no upscale" : `${options.enhance_engine} ${options.enhance_level}`}
               </button>
-              <div className="font-mono text-[10px] text-zinc-500">{options.cutout_model_id} · {options.enhance_level === "off" ? "enhance off" : options.enhance_engine}</div>
-              <div className="ml-auto flex items-center gap-2 font-mono text-[10px]">
+
+              {/* Right: identity and update state. */}
+              <div className="ml-auto flex items-center gap-3">
                 {updateInfo ? (
                   <button
                     type="button"
                     onClick={() => void openExternalLink(LATEST_RELEASE_URL)}
-                    className="inline-flex items-center gap-1 rounded-[4px] border border-indigo-400/30 bg-indigo-500/12 px-1.5 py-0.5 text-indigo-300 transition-colors hover:bg-indigo-500/18"
+                    className="inline-flex items-center gap-1 text-indigo-300 transition-colors hover:text-indigo-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400/70"
                   >
                     <Download className="h-3 w-3" />
-                    Update available
+                    {updateInfo.version} available
                   </button>
                 ) : null}
                 <button
                   type="button"
-                  onClick={() => void openExternalLink(updateInfo?.url ?? LATEST_RELEASE_URL)}
-                  className={`transition-colors ${updateInfo ? "text-indigo-300 hover:text-indigo-200" : "text-zinc-500 hover:text-zinc-300"}`}
+                  onClick={() => void openExternalLink(PROJECT_GITHUB_URL)}
+                  aria-label="Open the project on GitHub"
+                  title="Open the project on GitHub"
+                  className="text-zinc-600 transition-colors hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400/70"
                 >
-                  v{APP_VERSION}
+                  <Github className="h-3 w-3" />
                 </button>
+                <span className="tabular-nums text-zinc-600">v{APP_VERSION}</span>
               </div>
-            </div>
+            </footer>
           </main>
         </div>
       </div>
