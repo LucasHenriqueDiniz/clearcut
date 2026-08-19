@@ -4,7 +4,7 @@ import { Activity, ChevronDown, Clock3, Download, FolderInput, FolderOpen, Githu
 import { HistoryList } from "@/features/history/history-list";
 import { JobQueue }       from "@/features/jobs/job-queue";
 import { MaskEditorModal } from "@/features/jobs/mask-editor-modal";
-import { JobSettingsPanel } from "@/features/settings/job-settings-panel";
+import { WorkspacePanel } from "@/features/settings/workspace-panel";
 import { AppSettings, type SettingsTab } from "@/features/settings/app-settings";
 import { Button } from "@/components/ui";
 import { ToastItem, ToastStack } from "@/components/toast-stack";
@@ -933,7 +933,7 @@ export default function App() {
                 {activeTab === "workspace" ? (
                   <div className={`grid min-h-0 h-full w-full overflow-hidden ${settingsPanelCollapsed ? "grid-cols-[0_minmax(0,1fr)]" : "grid-cols-[320px_minmax(0,1fr)]"}`}>
                     <div className={`${settingsPanelCollapsed ? "pointer-events-none opacity-0" : "opacity-100"} min-h-0 transition-opacity duration-150`}>
-                      <JobSettingsPanel
+                      <WorkspacePanel
                         className="h-full"
                         activeTab={workspaceTab}
                         onActiveTabChange={setWorkspaceTab}
@@ -945,7 +945,6 @@ export default function App() {
                           setActiveTab("settings");
                           setSettingsTab("performance");
                         }}
-                        showLocalTabs={false}
                       />
                     </div>
 
