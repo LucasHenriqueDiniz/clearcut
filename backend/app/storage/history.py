@@ -1,7 +1,7 @@
-import sqlite3
 from datetime import datetime
 from pathlib import Path
 from app.core.config import settings
+from app.storage.sqlite import connect as sqlite_connect
 
 
 class HistoryStore:
@@ -10,10 +10,8 @@ class HistoryStore:
         self.db_path = settings.data_dir / "history.db"
         self._init_db()
 
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    def _connect(self):
+        return sqlite_connect(self.db_path)
 
     def _init_db(self) -> None:
         with self._connect() as conn:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -7,7 +8,7 @@ from app.providers.base import BackgroundRemovalProvider, ProviderResult
 from app.providers.local_rembg import RembgLocalProvider
 from app.providers.remove_bg_api import RemoveBgApiProvider
 from app.providers.simple_cv_local import SimpleCvLocalProvider
-from app.schemas.providers import ProviderSettingsPayload, ProviderStatus
+from app.schemas.providers import ProviderSettingsItem, ProviderSettingsPayload, ProviderStatus
 from app.storage.provider_settings import provider_settings_store
 
 
@@ -19,6 +20,8 @@ class ProviderExecution:
 
 class ProviderRegistry:
     def __init__(self) -> None:
+        # Guards key bookkeeping and persistence: jobs run concurrently.
+        self._settings_lock = threading.Lock()
         self.providers: dict[str, BackgroundRemovalProvider] = {
             "simple_cv_local": SimpleCvLocalProvider(),
             "rembg_local": RembgLocalProvider(),
@@ -35,12 +38,12 @@ class ProviderRegistry:
         for name, prio in defaults.items():
             if name not in known:
                 self.settings.providers.append(
-                    {
-                        "name": name,
-                        "enabled": True,
-                        "priority": prio,
-                        "keys": [],
-                    }
+                    ProviderSettingsItem(
+                        name=name,
+                        enabled=True,
+                        priority=prio,
+                        keys=[],
+                    )
                 )
                 changed = True
 
@@ -108,10 +111,11 @@ class ProviderRegistry:
 
     def _ordered_provider_settings(self, preferred: list[str]) -> list:
         by_name = {p.name: p for p in self.settings.providers}
-        ordered = [by_name[name] for name in preferred if name in by_name and by_name[name].enabled]
-        remaining = [p for p in self.settings.providers if p.enabled and p.name not in preferred]
-        remaining.sort(key=lambda p: p.priority)
-        return ordered + remaining
+        if preferred:
+            return [by_name[name] for name in preferred if name in by_name and by_name[name].enabled]
+        ordered = [p for p in self.settings.providers if p.enabled]
+        ordered.sort(key=lambda p: p.priority)
+        return ordered
 
     def _pick_key(self, setting) -> Optional[tuple[int, object]]:
         now = datetime.now(timezone.utc)
@@ -162,9 +166,6 @@ class ProviderRegistry:
                         model=model,
                         quality_preset=quality_preset or self.settings.default_quality_preset,
                     )
-                    if allow_external and result.confidence < 0.45:
-                        errors.append(f"{provider.name}: low confidence ({result.confidence:.2f}), trying fallback")
-                        continue
                     return ProviderExecution(result=result, via_api=False)
                 except Exception as exc:
                     errors.append(f"{provider.name}: {exc}")
@@ -178,16 +179,19 @@ class ProviderRegistry:
                 idx, key = picked
                 try:
                     result = provider.remove_background(image_bytes, model=model, api_key=key.key)
-                    self._mark_success(setting, idx)
-                    provider_settings_store.save(self.settings)
+                    with self._settings_lock:
+                        self._mark_success(setting, idx)
+                        provider_settings_store.save(self.settings)
                     return ProviderExecution(result=result, via_api=True)
                 except Exception as exc:
                     error_text = str(exc)
-                    self._mark_failure(setting, idx, error_text)
+                    with self._settings_lock:
+                        self._mark_failure(setting, idx, error_text)
                     errors.append(f"{provider.name}:{key.label} -> {error_text}")
                     picked = self._pick_key(setting)
 
-        provider_settings_store.save(self.settings)
+        with self._settings_lock:
+            provider_settings_store.save(self.settings)
         raise RuntimeError("No provider could process image. " + " | ".join(errors))
 
 

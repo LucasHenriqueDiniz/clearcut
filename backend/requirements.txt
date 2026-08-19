@@ -9,3 +9,4 @@ pytesseract==0.3.13
 requests==2.32.4
 python-slugify==8.0.4
 cryptography>=45,<46
+watchdog>=5,<7

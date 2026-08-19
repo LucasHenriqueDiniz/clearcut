@@ -2,7 +2,7 @@ import io
 from dataclasses import dataclass
 from pathlib import Path
 import numpy as np
-from PIL import Image, ImageColor, ImageOps
+from PIL import Image, ImageColor, ImageFilter, ImageOps
 from scipy import ndimage
 
 
@@ -208,3 +208,42 @@ def cleanup_white_halo(ctx: PipelineContext, strength: int) -> PipelineContext:
     ctx.image = Image.fromarray(np.clip(image_data, 0, 255).astype(np.uint8), mode="RGBA")
     ctx.alpha_mask = ctx.image.getchannel("A")
     return enforce_locked_masks(ctx)
+
+
+def _split_color_and_alpha(image: Image.Image) -> tuple[Image.Image, Image.Image | None]:
+    if image.mode == "RGBA":
+        return image.convert("RGB"), image.getchannel("A")
+    return image.convert("RGB"), None
+
+
+def _merge_color_and_alpha(color: Image.Image, alpha: Image.Image | None) -> Image.Image:
+    if alpha is None:
+        return color
+    return Image.merge("RGBA", (*color.split(), alpha))
+
+
+def apply_denoise(ctx: PipelineContext) -> PipelineContext:
+    color, alpha = _split_color_and_alpha(ctx.image)
+    color = color.filter(ImageFilter.MedianFilter(size=3))
+    ctx.image = _merge_color_and_alpha(color, alpha)
+    if alpha is not None:
+        ctx.alpha_mask = alpha
+    return ctx
+
+
+def apply_color_normalization(ctx: PipelineContext) -> PipelineContext:
+    color, alpha = _split_color_and_alpha(ctx.image)
+    color = ImageOps.autocontrast(color, cutoff=1)
+    ctx.image = _merge_color_and_alpha(color, alpha)
+    if alpha is not None:
+        ctx.alpha_mask = alpha
+    return ctx
+
+
+def apply_sharpening(ctx: PipelineContext) -> PipelineContext:
+    color, alpha = _split_color_and_alpha(ctx.image)
+    color = color.filter(ImageFilter.UnsharpMask(radius=1.3, percent=110, threshold=2))
+    ctx.image = _merge_color_and_alpha(color, alpha)
+    if alpha is not None:
+        ctx.alpha_mask = alpha
+    return ctx

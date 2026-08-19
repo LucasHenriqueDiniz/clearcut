@@ -1,10 +1,19 @@
 import type {
+  CreatePresetRequest,
   HistoryItem,
   JobResponse,
+  ModelCatalogItem,
+  ModelBenchmarkStatus,
+  ModelStorageConfig,
+  ModelTask,
+  PresetItem,
   ProcessingOptions,
   ProviderSettingsPayload,
   ProviderStatus,
   UploadItem,
+  UpdatePresetRequest,
+  WatchFolderItem,
+  WatchFolderPayload,
 } from "@/types";
 import {
   getBackendBaseUrl,
@@ -38,6 +47,9 @@ function describeError(error: unknown): string {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= REQUEST_RETRIES; attempt += 1) {
+    if (init?.signal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
     try {
       const apiUrl = await getBackendBaseUrl();
       const res = await fetch(`${apiUrl}${path}`, {
@@ -59,8 +71,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       return res.json() as Promise<T>;
     } catch (error) {
       lastError = error;
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw error;
+      }
       logEvent("warn", `request failed (attempt ${attempt})`, `${path} :: ${describeError(error)}`);
-      const shouldRetry = error instanceof TypeError;
+      // Only GETs are safe to replay: retrying a POST can duplicate the job.
+      const method = (init?.method ?? "GET").toUpperCase();
+      const shouldRetry = error instanceof TypeError && method === "GET";
       if (!shouldRetry || attempt === REQUEST_RETRIES) {
         logEvent("error", "request failed", `${path} :: ${describeError(error)}`);
         throw error;
@@ -157,8 +174,8 @@ export async function createJobWithMasks(
   });
 }
 
-export async function getJob(jobId: string): Promise<JobResponse> {
-  return request(`/jobs/${jobId}`);
+export async function getJob(jobId: string, signal?: AbortSignal): Promise<JobResponse> {
+  return request(`/jobs/${jobId}`, signal ? { signal } : undefined);
 }
 
 export async function cancelJob(jobId: string): Promise<void> {
@@ -216,6 +233,109 @@ export async function saveProviderSettings(payload: ProviderSettingsPayload): Pr
 
 export async function testProvider(providerName: string): Promise<{ ok: boolean; message: string }> {
   return request(`/providers/test/${providerName}`, { method: "POST" });
+}
+
+export async function listPresets(): Promise<PresetItem[]> {
+  return request("/presets");
+}
+
+export async function createPreset(payload: CreatePresetRequest): Promise<PresetItem> {
+  return request("/presets", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updatePreset(presetId: string, payload: UpdatePresetRequest): Promise<PresetItem> {
+  return request(`/presets/${presetId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deletePreset(presetId: string): Promise<void> {
+  await request(`/presets/${presetId}`, { method: "DELETE" });
+}
+
+export async function listModelCatalog(task?: ModelTask): Promise<ModelCatalogItem[]> {
+  const query = task ? `?task=${encodeURIComponent(task)}` : "";
+  return request(`/models/catalog${query}`);
+}
+
+export async function refreshModelCatalog(task?: ModelTask): Promise<ModelCatalogItem[]> {
+  const query = task ? `?task=${encodeURIComponent(task)}` : "";
+  return request(`/models/refresh${query}`, { method: "POST" });
+}
+
+export async function getModelStorageConfig(): Promise<ModelStorageConfig> {
+  return request("/models/config");
+}
+
+export async function updateModelStorageConfig(
+  rootDir: string | null,
+  migrationMode: "move" | "delete" | "ignore" = "move",
+): Promise<ModelStorageConfig> {
+  return request("/models/config", {
+    method: "PATCH",
+    body: JSON.stringify({ root_dir: rootDir, migration_mode: migrationMode }),
+  });
+}
+
+export async function getModelBenchmarkStatus(): Promise<ModelBenchmarkStatus> {
+  return request("/models/benchmark/status");
+}
+
+export async function runModelBenchmark(payload?: { task?: ModelTask; sample_dir?: string | null; model_ids?: string[] }): Promise<ModelBenchmarkStatus> {
+  return request("/models/benchmark/run", {
+    method: "POST",
+    body: JSON.stringify(payload ?? { task: "cutout" }),
+  });
+}
+
+export async function getModelStatus(modelId: string): Promise<ModelCatalogItem> {
+  return request(`/models/${modelId}/status`);
+}
+
+export async function installModel(modelId: string): Promise<ModelCatalogItem> {
+  return request(`/models/${modelId}/install`, { method: "POST" });
+}
+
+export async function deleteModel(modelId: string): Promise<void> {
+  await request(`/models/${modelId}`, { method: "DELETE" });
+}
+
+export async function listWatchFolders(): Promise<WatchFolderItem[]> {
+  return request("/watch-folders");
+}
+
+export async function createWatchFolder(payload: WatchFolderPayload): Promise<WatchFolderItem> {
+  return request("/watch-folders", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateWatchFolder(id: string, payload: Partial<WatchFolderPayload>): Promise<WatchFolderItem> {
+  return request(`/watch-folders/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteWatchFolder(id: string): Promise<void> {
+  await request(`/watch-folders/${id}`, { method: "DELETE" });
+}
+
+export async function enableWatchFolder(id: string): Promise<WatchFolderItem> {
+  return request(`/watch-folders/${id}/enable`, { method: "POST" });
+}
+
+export async function disableWatchFolder(id: string): Promise<WatchFolderItem> {
+  return request(`/watch-folders/${id}/disable`, { method: "POST" });
+}
+
+export async function getWatchFolderStatus(id: string): Promise<WatchFolderItem> {
+  return request(`/watch-folders/${id}/status`);
 }
 
 export async function listHistory(): Promise<HistoryItem[]> {

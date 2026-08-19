@@ -10,6 +10,7 @@ type AppState = {
   activePreset: string;
   options: ProcessingOptions;
   skipDuplicates: boolean;
+  ignoreAlreadyInQueue: boolean;
   setUploads: (uploads: UploadItem[]) => void;
   addUploads: (uploads: UploadItem[]) => void;
   updateUpload: (uploadId: string, update: Partial<UploadItem>) => void;
@@ -21,6 +22,7 @@ type AppState = {
   setActivePreset: (preset: string) => void;
   setOptions: (options: Partial<ProcessingOptions>) => void;
   setSkipDuplicates: (value: boolean) => void;
+  setIgnoreAlreadyInQueue: (value: boolean) => void;
   resetQueue: () => void;
 };
 
@@ -28,14 +30,19 @@ const baseOptions: ProcessingOptions = {
   workflow_mode: "cutout_only",
   processing_order: "cutout_then_enhance",
   preset: "quick_cutout",
-  provider_priority: ["rembg_local", "simple_cv_local", "remove_bg_api"],
+  provider_priority: ["rembg_local"],
   remove_background: true,
+  cutout_engine: "rembg",
+  cutout_model_id: "u2netp",
   local_model: "u2netp",
   local_quality_preset: "balanced",
   enhance_level: "off",
   enhance_engine: "realesrgan",
   enhance_model: null,
-  fallback_to_api: true,
+  preprocess_denoise: false,
+  preprocess_color_normalization: false,
+  preprocess_sharpening: false,
+  fallback_to_api: false,
   trim_transparent_bounds: true,
   padding: 0,
   resize_mode: "keep",
@@ -44,6 +51,7 @@ const baseOptions: ProcessingOptions = {
   aspect_ratio: "keep",
   background_mode: "transparent",
   background_color: "#ffffff",
+  output_dir_override: null,
   output_format: "png",
   quality: 90,
   strip_metadata: true,
@@ -68,6 +76,7 @@ export const useAppStore = create<AppState>((set) => ({
   activePreset: "quick_cutout",
   options: baseOptions,
   skipDuplicates: true,
+  ignoreAlreadyInQueue: true,
   setUploads: (uploads) => set({ uploads }),
   addUploads: (uploads) =>
     set((state) => {
@@ -103,69 +112,6 @@ export const useAppStore = create<AppState>((set) => ({
   setActivePreset: (activePreset) => set({ activePreset }),
   setOptions: (partial) => set((state) => ({ options: { ...state.options, ...partial } })),
   setSkipDuplicates: (skipDuplicates) => set({ skipDuplicates }),
+  setIgnoreAlreadyInQueue: (ignoreAlreadyInQueue) => set({ ignoreAlreadyInQueue }),
   resetQueue: () => set({ uploads: [], currentJob: undefined, resultByInput: {} }),
 }));
-
-export const presets: Record<string, Partial<ProcessingOptions>> = {
-  quick_cutout: {
-    workflow_mode: "cutout_only",
-    preset: "quick_cutout",
-    remove_background: true,
-    trim_transparent_bounds: true,
-    provider_priority: ["rembg_local", "simple_cv_local", "remove_bg_api"],
-    local_quality_preset: "balanced",
-    enhance_level: "off",
-    output_format: "png",
-    quality: 95,
-  },
-  product_image: {
-    workflow_mode: "cutout_only",
-    preset: "product_image",
-    remove_background: true,
-    trim_transparent_bounds: true,
-    padding: 24,
-    provider_priority: ["rembg_local", "simple_cv_local", "remove_bg_api"],
-    local_quality_preset: "hq",
-    enhance_level: "off",
-    output_format: "webp",
-    quality: 90,
-  },
-  portrait: {
-    workflow_mode: "cutout_only",
-    preset: "portrait",
-    remove_background: true,
-    local_quality_preset: "hq",
-    provider_priority: ["rembg_local", "simple_cv_local", "remove_bg_api"],
-    enhance_level: "off",
-    output_format: "png",
-    quality: 100,
-  },
-  anime_art: {
-    workflow_mode: "cutout_only",
-    preset: "anime_art",
-    remove_background: true,
-    local_quality_preset: "fast",
-    provider_priority: ["rembg_local", "simple_cv_local", "remove_bg_api"],
-    enhance_level: "off",
-    output_format: "png",
-    quality: 100,
-  },
-  convert_only: {
-    workflow_mode: "cutout_only",
-    preset: "convert_only",
-    remove_background: false,
-    trim_transparent_bounds: false,
-    enhance_level: "off",
-    output_format: "png",
-    quality: 92,
-  },
-  remove_trim_webp: {
-    workflow_mode: "cutout_only",
-    preset: "remove_trim_webp",
-    remove_background: true,
-    trim_transparent_bounds: true,
-    enhance_level: "off",
-    output_format: "webp",
-    quality: 86,
-  },
-};

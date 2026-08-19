@@ -51,9 +51,11 @@ Main use cases:
   - folder picker
   - drag and drop
   - clipboard paste
-- Batch queue with per-file states
-- Local background removal with model selection
+- Batch queue with per-file states, processed in parallel
+- Local background removal with installable model selection
 - Optional provider fallback
+- Persistent backend presets
+- Desktop watch folders for automated ingest
 - Manual mask editor
 - Output controls:
   - PNG / WebP / JPEG / AVIF
@@ -68,6 +70,7 @@ Main use cases:
 - Save all outputs
 - Save as ZIP
 - History and provider settings
+- Settings sub-pages for models and watch folders
 
 ## Stack
 
@@ -81,8 +84,10 @@ Main use cases:
 - Backend:
   - FastAPI
   - Pillow
-  - rembg
+  - rembg on ONNX Runtime
+  - NumPy / SciPy
   - pytesseract
+  - SQLite
 - Desktop shell:
   - Tauri 2
   - Rust bootstrap
@@ -116,6 +121,7 @@ frontend/
   app/
   components/
   features/
+  hooks/
   lib/
   services/
   stores/
@@ -189,6 +195,25 @@ Build installer:
 cd frontend
 npm run tauri:build
 ```
+
+## Development
+
+The frontend types in `frontend/types/api.ts` are generated from the backend's
+OpenAPI document, so they cannot drift from the Pydantic schemas. After changing
+anything under `backend/app/schemas/`, regenerate them:
+
+```bash
+cd frontend && npm run gen:api
+```
+
+Typecheck before opening a PR:
+
+```bash
+cd frontend && npx tsc --noEmit
+```
+
+`AGENTS.md` documents the architecture invariants and is read by coding agents
+(Claude Code, OpenCode, Cursor, Copilot). Worth a read before contributing.
 
 ## Docker
 

@@ -7,6 +7,7 @@ from threading import Lock
 from fastapi import UploadFile
 from slugify import slugify
 from app.core.config import settings
+from app.utils.paths import output_path_guard
 
 
 @dataclass(frozen=True)
@@ -84,14 +85,21 @@ class FileStorage:
         )
         return self._register_entry(entry)
 
-    def output_path_for(self, filename: str, output_format: str) -> Path:
+    def output_path_for(self, filename: str, output_format: str, *, base_dir: Path | None = None, flat: bool = False) -> Path:
+        root = base_dir.resolve() if base_dir else self.output_dir
+        output_path_guard.register_root(root)
         folder = "jpg" if output_format in {"jpg", "jpeg"} else output_format
-        folder_path = self.output_dir / folder
+        folder_path = root if flat else (root / folder)
         folder_path.mkdir(parents=True, exist_ok=True)
         return folder_path / f"{filename}.{output_format if output_format != 'jpg' else 'jpeg'}"
 
-    def mask_output_path_for(self, filename: str) -> Path:
-        return self.output_dir / "masks" / f"{filename}_mask.png"
+    def mask_output_path_for(self, filename: str, *, base_dir: Path | None = None, flat: bool = False) -> Path:
+        root = base_dir.resolve() if base_dir else self.output_dir
+        output_path_guard.register_root(root)
+        if flat:
+            root.mkdir(parents=True, exist_ok=True)
+            return root / f"{filename}_mask.png"
+        return root / "masks" / f"{filename}_mask.png"
 
     def zip_path_for(self, base_name: str) -> Path:
         ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")

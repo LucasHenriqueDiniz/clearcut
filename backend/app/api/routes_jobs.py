@@ -16,6 +16,7 @@ from app.schemas.jobs import (
 from app.services.job_service import job_service
 from app.storage.filesystem import storage
 from app.utils.file_types import is_supported_input
+from app.utils.paths import resolve_served_path
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -145,8 +146,11 @@ def download_job_zip(job_id: str) -> FileResponse:
 
 @router.get("/download")
 def download_output(path: str) -> FileResponse:
-    file_path = Path(path).expanduser().resolve()
-    if not file_path.exists() or not file_path.is_file():
+    try:
+        file_path = resolve_served_path(path)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Path is outside the allowed output folders")
+    except FileNotFoundError:
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path, filename=file_path.name)
 

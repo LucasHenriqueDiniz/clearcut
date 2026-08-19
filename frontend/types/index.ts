@@ -1,122 +1,73 @@
-export type ProviderStatus = {
-  name: string;
-  enabled: boolean;
-  available: boolean;
-  is_local: boolean;
-  priority: number;
-  key_count: number;
-  healthy: boolean;
-  last_error?: string | null;
+/**
+ * Public type surface for the app.
+ *
+ * Everything the backend owns is aliased from `./api`, which is generated from
+ * the FastAPI OpenAPI document (`npm run gen:api`). Hand-writing these meant
+ * the frontend could silently disagree with the Pydantic schemas; aliasing
+ * turns any backend change into a compile error here instead.
+ *
+ * Only genuinely frontend-only shapes are declared by hand below.
+ */
+import type { components } from "./api";
+
+type Schemas = components["schemas"];
+
+/**
+ * Re-require fields the server always sends.
+ *
+ * A Pydantic field with a default is "not required" in the OpenAPI document,
+ * so the generator marks it optional — but responses always carry it, because
+ * FastAPI serializes the whole model. Narrowing here beats sprinkling `?? []`
+ * over every consumer.
+ */
+type AlwaysSent<T, K extends keyof T> = Omit<T, K> & {
+  [P in K]-?: NonNullable<T[P]>;
 };
 
-export type ProviderApiKey = {
-  id: string;
-  label: string;
-  key: string;
-  enabled: boolean;
-  priority: number;
-  usage_notes?: string | null;
-  monthly_limit?: number | null;
-  daily_limit?: number | null;
-  used_count: number;
-  last_success_at?: string | null;
-  last_error?: string | null;
-  cooldown_until?: string | null;
-};
-
-export type ProviderSettingsItem = {
-  name: string;
-  enabled: boolean;
-  priority: number;
-  keys: ProviderApiKey[];
-};
-
-export type ProviderSettingsPayload = {
-  use_only_local: boolean;
-  default_quality_preset: "fast" | "balanced" | "hq";
+export type ProviderStatus = Schemas["ProviderStatus"];
+export type ProviderApiKey = Schemas["ProviderApiKey"];
+export type ProviderSettingsItem = AlwaysSent<Schemas["ProviderSettingsItem"], "keys">;
+export type ProviderSettingsPayload = Omit<Schemas["ProviderSettingsPayload"], "providers"> & {
   providers: ProviderSettingsItem[];
 };
 
-export type UploadItem = {
-  upload_id: string;
-  filename: string;
-  size: number;
-  mime_type: string;
-  path: string;
-  source_path?: string;
-  storage_mode: "desktop_path" | "uploaded_blob";
+export type ProcessingOptions = Schemas["ProcessingOptions"];
+
+export type PresetItem = Schemas["PresetItem"];
+export type CreatePresetRequest = Schemas["CreatePresetRequest"];
+export type UpdatePresetRequest = Schemas["UpdatePresetRequest"];
+
+export type ModelCatalogItem = Schemas["ModelCatalogItem"];
+export type ModelStorageConfig = Schemas["ModelStorageConfig"];
+export type ModelBenchmarkImageResult = Schemas["ModelBenchmarkImageResult"];
+export type ModelBenchmarkResult = Schemas["ModelBenchmarkResult"];
+export type ModelBenchmarkReport = Schemas["ModelBenchmarkReport"];
+export type ModelBenchmarkStatus = Schemas["ModelBenchmarkStatus"];
+
+export type ModelInstallState = ModelCatalogItem["install_state"];
+export type ModelTask = ModelCatalogItem["task"];
+export type ModelEngine = ModelCatalogItem["engine"];
+export type BenchmarkState = ModelBenchmarkStatus["state"];
+
+export type WatchFolderItem = Schemas["WatchFolderItem"];
+export type WatchFolderPayload = Schemas["WatchFolderCreateRequest"];
+export type WatchFolderStatus = WatchFolderItem["status"];
+
+export type JobFileResult = Schemas["JobFileResult"];
+export type JobResponse = Omit<Schemas["JobResponse"], "files"> & {
+  files: JobFileResult[];
+};
+export type JobState = JobResponse["state"];
+
+export type HistoryItem = Schemas["HistoryItem"];
+
+/**
+ * An upload as the UI tracks it: the backend's record plus client-side state
+ * (object URL for the thumbnail, dedup fingerprint, pending mask drawing) that
+ * never crosses the wire.
+ */
+export type UploadItem = Schemas["UploadItem"] & {
   preview_url?: string;
   fingerprint?: string;
   mask_hint_data_url?: string;
-};
-
-export type ProcessingOptions = {
-  workflow_mode: "cutout_only" | "enhance_only" | "cutout_enhance";
-  processing_order?: "cutout_then_enhance" | "enhance_then_cutout" | null;
-  preset: string;
-  provider_priority: string[];
-  remove_background: boolean;
-  local_model: string;
-  local_quality_preset?: "fast" | "balanced" | "hq" | null;
-  enhance_level: "off" | "2x" | "4x";
-  enhance_engine: "realesrgan";
-  enhance_model?: string | null;
-  fallback_to_api: boolean;
-  trim_transparent_bounds: boolean;
-  padding: number;
-  resize_mode: "keep" | "custom";
-  resize_max_width?: number | null;
-  resize_max_height?: number | null;
-  aspect_ratio: string;
-  background_mode: "transparent" | "solid";
-  background_color: string;
-  output_format: "png" | "webp" | "jpeg" | "jpg" | "avif";
-  quality: number;
-  strip_metadata: boolean;
-  naming_mode: "keep_original" | "pattern" | "ocr_text";
-  filename_pattern: string;
-  naming_regex_find?: string | null;
-  naming_regex_replace: string;
-  ocr_language: string;
-  ocr_max_length: number;
-  alpha_threshold: number;
-  edge_feather_radius: number;
-  white_halo_cleanup: number;
-  save_alpha_mask: boolean;
-};
-
-export type JobFileResult = {
-  input_path: string;
-  output_path?: string | null;
-  output_filename?: string | null;
-  state: "queued" | "processing" | "done" | "failed" | "canceled";
-  engine_used?: string | null;
-  provider_used?: string | null;
-  error_message?: string | null;
-  started_at?: string | null;
-  finished_at?: string | null;
-};
-
-export type JobResponse = {
-  job_id: string;
-  state: "queued" | "processing" | "done" | "failed" | "canceled";
-  progress: number;
-  created_at: string;
-  updated_at: string;
-  options: ProcessingOptions;
-  files: JobFileResult[];
-};
-
-export type HistoryItem = {
-  id: number;
-  original_filename: string;
-  output_filename: string;
-  engine_used: string;
-  provider_used: string;
-  processing_options: string;
-  created_at: string;
-  success: boolean;
-  error_message?: string | null;
-  input_path: string;
-  output_path: string;
 };

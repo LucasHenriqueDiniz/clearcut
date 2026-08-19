@@ -34,4 +34,5 @@ declare module "@tauri-apps/plugin-dialog" {
 declare module "@tauri-apps/plugin-fs" {
   export function readFile(path: string): Promise<Uint8Array>;
   export function writeFile(path: string | URL, data: Uint8Array): Promise<void>;
+  export function writeTextFile(path: string | URL, data: string): Promise<void>;
 }

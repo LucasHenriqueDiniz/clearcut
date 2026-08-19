@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from app.core.config import settings
+from app.utils.paths import resolve_served_path
 
 router = APIRouter(prefix="/fs", tags=["filesystem"])
 
@@ -31,8 +32,11 @@ def _reveal(path: Path) -> None:
 
 @router.post("/reveal")
 def reveal_file(path: str) -> dict:
-    file_path = Path(path).expanduser().resolve()
-    if not file_path.exists():
+    try:
+        file_path = resolve_served_path(path)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Path is outside the allowed output folders")
+    except FileNotFoundError:
         raise HTTPException(status_code=404, detail="File not found")
     if settings.running_in_docker:
         return {

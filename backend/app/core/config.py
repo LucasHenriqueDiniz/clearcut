@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     output_dir: Path = Path("./outputs")
     models_dir: Path = Path("./models")
     rembg_models_dir: Path = Path("./models/rembg")
+    bundled_rembg_models_dir: Path | None = None
     logs_dir: Path = Path("./logs")
     provider_settings_encrypt: bool = False
     provider_settings_key: str = ""

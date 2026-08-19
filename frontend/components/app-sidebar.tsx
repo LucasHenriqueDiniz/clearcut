@@ -1,11 +1,11 @@
 "use client";
 
 import type React from "react";
-import { ChevronLeft, Clock3, Grid2x2, Layers3, Settings2, SlidersHorizontal, Tags } from "lucide-react";
+import { Boxes, ChevronLeft, Clock3, Download, FolderInput, Grid2x2, Scissors, Settings2, SlidersHorizontal, Sparkles, WandSparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type MainTab = "workspace" | "providers" | "settings" | "history";
-type WorkspaceTab = "general" | "naming" | "presets" | "batch";
+type MainTab = "workspace" | "providers" | "models" | "settings" | "history";
+type WorkspaceTab = "input" | "preprocess" | "cutout" | "postprocess" | "export";
 
 type Props = {
   activeTab: MainTab;
@@ -95,43 +95,53 @@ export function AppSidebar({
         <div className="space-y-1">
           <GroupLabel collapsed={collapsed}>Workspace</GroupLabel>
           <NavItem
-            active={activeTab === "workspace" && workspaceTab === "general"}
+            active={activeTab === "workspace" && workspaceTab === "input"}
             collapsed={collapsed}
-            icon={Grid2x2}
-            label="General"
+            icon={FolderInput}
+            label="Input"
             onClick={() => {
               onActiveTabChange("workspace");
-              onWorkspaceTabChange("general");
+              onWorkspaceTabChange("input");
             }}
           />
           <NavItem
-            active={activeTab === "workspace" && workspaceTab === "naming"}
+            active={activeTab === "workspace" && workspaceTab === "preprocess"}
             collapsed={collapsed}
-            icon={Tags}
-            label="Naming"
+            icon={Sparkles}
+            label="Preprocess"
             onClick={() => {
               onActiveTabChange("workspace");
-              onWorkspaceTabChange("naming");
+              onWorkspaceTabChange("preprocess");
             }}
           />
           <NavItem
-            active={activeTab === "workspace" && workspaceTab === "presets"}
+            active={activeTab === "workspace" && workspaceTab === "cutout"}
             collapsed={collapsed}
-            icon={Layers3}
-            label="Presets"
+            icon={Scissors}
+            label="Cutout"
             onClick={() => {
               onActiveTabChange("workspace");
-              onWorkspaceTabChange("presets");
+              onWorkspaceTabChange("cutout");
             }}
           />
           <NavItem
-            active={activeTab === "workspace" && workspaceTab === "batch"}
+            active={activeTab === "workspace" && workspaceTab === "postprocess"}
             collapsed={collapsed}
-            icon={Settings2}
-            label="Batch"
+            icon={WandSparkles}
+            label="Postprocess"
             onClick={() => {
               onActiveTabChange("workspace");
-              onWorkspaceTabChange("batch");
+              onWorkspaceTabChange("postprocess");
+            }}
+          />
+          <NavItem
+            active={activeTab === "workspace" && workspaceTab === "export"}
+            collapsed={collapsed}
+            icon={Download}
+            label="Export"
+            onClick={() => {
+              onActiveTabChange("workspace");
+              onWorkspaceTabChange("export");
             }}
           />
         </div>
@@ -144,6 +154,13 @@ export function AppSidebar({
             icon={SlidersHorizontal}
             label="Providers"
             onClick={() => onActiveTabChange("providers")}
+          />
+          <NavItem
+            active={activeTab === "models"}
+            collapsed={collapsed}
+            icon={Boxes}
+            label="Models"
+            onClick={() => onActiveTabChange("models")}
           />
           <NavItem
             active={activeTab === "settings"}

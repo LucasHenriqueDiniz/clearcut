@@ -162,6 +162,17 @@ export async function pickFolderFilePathsForUpload(): Promise<string[]> {
   return filterImagePaths(paths);
 }
 
+export async function pickDirectoryPath(): Promise<string | null> {
+  if (!isTauriEnvironment()) return null;
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const selection = await open({
+    multiple: false,
+    directory: true,
+  });
+  const [directory] = normalizeDialogResult(selection);
+  return directory ?? null;
+}
+
 export async function expandDesktopPaths(paths: string[]): Promise<string[]> {
   if (!isTauriEnvironment()) return filterImagePaths(paths);
 
@@ -250,6 +261,30 @@ export async function saveOutputDesktop(fileUrl: string, suggestedName: string):
   }
   const buffer = new Uint8Array(await response.arrayBuffer());
   await writeFile(savePath, buffer);
+  return { savedPath: savePath };
+}
+
+export async function saveTextFileDesktop(
+  content: string,
+  suggestedName: string,
+  title = "Save file",
+  filters?: { name: string; extensions: string[] }[],
+): Promise<{ canceled?: boolean; savedPath?: string }> {
+  if (!isTauriEnvironment()) return {};
+
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  const savePath = await save({
+    title,
+    defaultPath: suggestedName,
+    filters,
+  });
+
+  if (!savePath) {
+    return { canceled: true };
+  }
+
+  const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+  await writeTextFile(savePath, content);
   return { savedPath: savePath };
 }
 

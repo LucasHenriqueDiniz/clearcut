@@ -3,6 +3,8 @@ frontend/node_modules
 frontend/.next
 frontend/.turbo
 frontend/tsconfig.tsbuildinfo
+# Stale, unused: this project installs with npm (package-lock.json).
+frontend/pnpm-lock.yaml
 
 # Python
 backend/.venv
@@ -12,6 +14,16 @@ backend/**/*.pyc
 # Runtime data
 backend/data/*.db
 backend/data/providers.json
+backend/logs/*
+backend/models/*
+# The backend resolves its data dirs relative to the working directory, so
+# launching it from the repo root creates these at the top level instead.
+# They hold databases, downloaded models and provider settings - never commit them.
+/data/
+/logs/
+/models/
+/outputs/
+/uploads/
 backend/uploads/*
 backend/outputs/*
 !backend/outputs/.gitkeep

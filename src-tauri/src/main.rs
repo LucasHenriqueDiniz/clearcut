@@ -35,6 +35,7 @@ struct RuntimePaths {
 }
 
 struct BackendRuntimeState {
+    bootstrap_lock: Mutex<()>,
     child: Mutex<Option<Child>>,
     runtime: Mutex<Option<DesktopRuntime>>,
     closing: AtomicBool,
@@ -43,6 +44,7 @@ struct BackendRuntimeState {
 impl Default for BackendRuntimeState {
     fn default() -> Self {
         Self {
+            bootstrap_lock: Mutex::new(()),
             child: Mutex::new(None),
             runtime: Mutex::new(None),
             closing: AtomicBool::new(false),
@@ -103,36 +105,24 @@ fn dev_backend_root() -> PathBuf {
         .join("backend")
 }
 
-fn resolve_rembg_models_dir(app: &AppHandle) -> Result<PathBuf, String> {
+fn resolve_bundled_rembg_models_dir(app: &AppHandle) -> Option<PathBuf> {
     let dev_candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("resources")
         .join("backend")
         .join("models")
         .join("rembg");
     if dev_candidate.exists() {
-        return Ok(dev_candidate);
+        return Some(dev_candidate);
     }
 
     let packaged_candidates = [
-        app.path()
-            .resolve("backend/models/rembg", BaseDirectory::Resource)
-            .map_err(|err| err.to_string())?,
+        app.path().resolve("backend/models/rembg", BaseDirectory::Resource).ok(),
         app.path()
             .resolve("resources/backend/models/rembg", BaseDirectory::Resource)
-            .map_err(|err| err.to_string())?,
+            .ok(),
     ];
-    packaged_candidates
-        .iter()
-        .find(|path| path.exists())
-        .cloned()
-        .ok_or_else(|| {
-            let checked = packaged_candidates
-                .iter()
-                .map(|path| format!(" - {}", path.display()))
-                .collect::<Vec<_>>()
-                .join("\n");
-            format!("Bundled rembg model directory not found. Checked:\n{checked}")
-        })
+
+    packaged_candidates.into_iter().flatten().find(|path| path.exists())
 }
 
 fn build_dev_command(
@@ -140,6 +130,7 @@ fn build_dev_command(
     port: u16,
     paths: &RuntimePaths,
     rembg_models_dir: &Path,
+    bundled_rembg_models_dir: Option<&Path>,
 ) -> Result<Command, String> {
     let venv_windows = backend_root.join(".venv").join("Scripts").join("python.exe");
     let venv_unix = backend_root.join(".venv").join("bin").join("python");
@@ -157,13 +148,13 @@ fn build_dev_command(
 
     let import_check = Command::new(&interpreter)
         .arg("-c")
-        .arg("import uvicorn")
+        .arg("import fastapi, uvicorn, PIL, watchdog, pydantic_core")
         .output()
         .map_err(|err| format!("Failed to verify backend Python environment: {err}"))?;
     if !import_check.status.success() {
         let stderr = String::from_utf8_lossy(&import_check.stderr);
         return Err(format!(
-            "Backend Python environment is missing dependencies (uvicorn). \
+            "Backend Python environment is missing or has broken dependencies. \
 Run backend dependency install first: `cd backend && .venv\\\\Scripts\\\\python.exe -m pip install -r requirements.txt`.\nDetails: {stderr}"
         ));
     }
@@ -172,7 +163,7 @@ Run backend dependency install first: `cd backend && .venv\\\\Scripts\\\\python.
     let mut command = Command::new(interpreter);
     command.arg(script_path);
     command.current_dir(backend_root);
-    apply_backend_env(&mut command, port, paths, rembg_models_dir);
+    apply_backend_env(&mut command, port, paths, rembg_models_dir, bundled_rembg_models_dir);
     Ok(command)
 }
 
@@ -181,6 +172,7 @@ fn build_packaged_command(
     port: u16,
     paths: &RuntimePaths,
     rembg_models_dir: &Path,
+    bundled_rembg_models_dir: Option<&Path>,
 ) -> Result<Command, String> {
     let exe_name = if cfg!(target_os = "windows") {
         "ipu-backend.exe"
@@ -220,11 +212,17 @@ fn build_packaged_command(
         })?;
 
     let mut command = Command::new(backend_executable);
-    apply_backend_env(&mut command, port, paths, rembg_models_dir);
+    apply_backend_env(&mut command, port, paths, rembg_models_dir, bundled_rembg_models_dir);
     Ok(command)
 }
 
-fn apply_backend_env(command: &mut Command, port: u16, paths: &RuntimePaths, rembg_models_dir: &Path) {
+fn apply_backend_env(
+    command: &mut Command,
+    port: u16,
+    paths: &RuntimePaths,
+    rembg_models_dir: &Path,
+    bundled_rembg_models_dir: Option<&Path>,
+) {
     command.env("BACKEND_HOST", "127.0.0.1");
     command.env("BACKEND_PORT", port.to_string());
     command.env("DATA_DIR", &paths.data_dir);
@@ -233,6 +231,9 @@ fn apply_backend_env(command: &mut Command, port: u16, paths: &RuntimePaths, rem
     command.env("MODELS_DIR", &paths.models_dir);
     command.env("REMBG_MODELS_DIR", rembg_models_dir);
     command.env("U2NET_HOME", rembg_models_dir);
+    if let Some(path) = bundled_rembg_models_dir {
+        command.env("BUNDLED_REMBG_MODELS_DIR", path);
+    }
     command.env("LOGS_DIR", &paths.logs_dir);
     command.env("RUNNING_IN_TAURI", "true");
     command.env("RUNNING_IN_DOCKER", "false");
@@ -298,6 +299,11 @@ fn log_backend_event(paths: &RuntimePaths, message: &str) -> Result<(), String> 
 }
 
 fn ensure_backend(app: &AppHandle, state: &BackendRuntimeState) -> Result<DesktopRuntime, String> {
+    let _bootstrap_guard = state
+        .bootstrap_lock
+        .lock()
+        .map_err(|err| err.to_string())?;
+
     if let Some(runtime) = state.runtime.lock().map_err(|err| err.to_string())?.clone() {
         return Ok(runtime);
     }
@@ -305,14 +311,28 @@ fn ensure_backend(app: &AppHandle, state: &BackendRuntimeState) -> Result<Deskto
     let paths = runtime_paths(app)?;
     let port = allocate_port()?;
     let backend_url = format!("http://127.0.0.1:{port}");
-    let rembg_models_dir = resolve_rembg_models_dir(app)?;
+    let rembg_models_dir = paths.models_dir.join("rembg");
+    let bundled_rembg_models_dir = resolve_bundled_rembg_models_dir(app);
+    fs::create_dir_all(&rembg_models_dir).map_err(|err| err.to_string())?;
 
     let bootstrap_started = std::time::Instant::now();
 
     let mut command = if cfg!(debug_assertions) {
-        build_dev_command(&dev_backend_root(), port, &paths, &rembg_models_dir)?
+        build_dev_command(
+            &dev_backend_root(),
+            port,
+            &paths,
+            &rembg_models_dir,
+            bundled_rembg_models_dir.as_deref(),
+        )?
     } else {
-        build_packaged_command(app, port, &paths, &rembg_models_dir)?
+        build_packaged_command(
+            app,
+            port,
+            &paths,
+            &rembg_models_dir,
+            bundled_rembg_models_dir.as_deref(),
+        )?
     };
 
     let sidecar_log_path = paths.logs_dir.join("backend-sidecar.log");
@@ -426,7 +446,7 @@ fn reveal_path(path: &Path) -> Result<(), String> {
     }
 }
 
-#[tauri::command(async)]
+#[tauri::command]
 fn bootstrap_backend(app: AppHandle, state: State<'_, BackendRuntimeState>) -> Result<DesktopRuntime, String> {
     ensure_backend(&app, state.inner())
 }

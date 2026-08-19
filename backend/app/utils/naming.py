@@ -51,7 +51,7 @@ def resolve_output_name(
             name=base_name,
             preset=options.preset,
             engine=engine_used.replace(":", "_"),
-            model=options.local_model,
+            model=options.cutout_model_id,
             ext=output_format,
             date=datetime.now().strftime("%Y%m%d"),
             index=f"{sequence_number:03d}",

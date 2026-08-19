@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, Clock3, Download, FolderOpen, Github, Grid2x2, Layers3, PanelLeft, Play, Settings2, SlidersHorizontal, SunMedium, Tags, Upload } from "lucide-react";
+import { Activity, Boxes, ChevronDown, Clock3, Download, FolderInput, FolderOpen, Github, PanelLeft, Play, Scissors, Settings2, SlidersHorizontal, Sparkles, Upload, WandSparkles } from "lucide-react";
 import { HistoryList } from "@/features/history/history-list";
 import { JobQueue }       from "@/features/jobs/job-queue";
 import { MaskEditorModal } from "@/features/jobs/mask-editor-modal";
 import { JobSettingsPanel } from "@/features/settings/job-settings-panel";
 import { AppSettings } from "@/features/settings/app-settings";
+import { ModelsSettings } from "@/features/settings/models-settings";
 import { ProvidersSettings } from "@/features/settings/providers-settings";
 import { Button } from "@/components/ui";
 import { ToastItem, ToastStack } from "@/components/toast-stack";
@@ -28,15 +29,16 @@ import {
   cancelJob,
   createJobWithMasks,
   downloadZip,
-  getJob,
   ingestDesktopPaths,
   openOutputFolder,
+  refreshModelCatalog,
   saveAllOutputs,
   saveSingleOutput,
   saveZipOutput,
   uploadFiles,
 } from "@/services/api";
 import { useAppStore } from "@/stores/use-app-store";
+import { useJobPolling } from "@/hooks/use-job-polling";
 import type { UploadItem } from "@/types";
 import { useBackendBaseUrl } from "@/lib/platform";
 import { logEvent } from "@/lib/dev-log";
@@ -116,8 +118,9 @@ export default function HomePage() {
   const [closingBackend, setClosingBackend] = useState(false);
   const [engineStarting, setEngineStarting] = useState(false);
 
-  const [activeTab,    setActiveTab]    = useState<"workspace" | "providers" | "settings" | "history">("workspace");
-  const [workspaceTab, setWorkspaceTab] = useState<"general" | "naming" | "presets" | "batch">("general");
+  const [activeTab,    setActiveTab]    = useState<"workspace" | "providers" | "models" | "settings" | "history">("workspace");
+  const [settingsTab, setSettingsTab] = useState<"general" | "watch-folders" | "performance">("general");
+  const [workspaceTab, setWorkspaceTab] = useState<"input" | "preprocess" | "cutout" | "postprocess" | "export">("input");
   const [refineUploadId, setRefineUploadId] = useState<string>();
   const [settingsPanelCollapsed, setSettingsPanelCollapsed] = useState(false);
   const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
@@ -145,6 +148,7 @@ export default function HomePage() {
     resultByInput,
     options,
     skipDuplicates,
+    ignoreAlreadyInQueue,
   } = useAppStore();
 
   const refineItem   = useMemo(() => uploads.find((u) => u.upload_id === refineUploadId), [refineUploadId, uploads]);
@@ -296,24 +300,25 @@ export default function HomePage() {
     };
   }, [isDesktopMode]);
 
+  useEffect(() => {
+    void refreshModelCatalog().catch(() => undefined);
+  }, []);
+
   // ── Job polling ──────────────────────────────────────────────────────────
-  const pollJob = async (jobId: string) => {
-    const status = await getJob(jobId);
-    setCurrentJob(status);
-    mergeJobResults(status);
-    if (status.state === "processing" || status.state === "queued") {
-      setTimeout(() => void pollJob(jobId), 700);
-      return;
-    }
-    setBusy(false);
-  };
+  const { pollJob } = useJobPolling({
+    onUpdate: (status) => {
+      setCurrentJob(status);
+      mergeJobResults(status);
+    },
+  });
 
   const runJob = async () => {
     if (!uploads.length) return;
     setBusy(true);
     try {
       const job = await createJobWithMasks(uploads, options);
-      await pollJob(job.job_id);
+      // A superseded poll resolves undefined: a newer job now owns `busy`.
+      if (await pollJob(job.job_id)) setBusy(false);
     } catch (e) {
       setBusy(false);
       pushToast("Batch failed to start", String(e), "error");
@@ -325,8 +330,13 @@ export default function HomePage() {
       setBusy(true);
       pushToast("Re-running item", item.filename, "info");
       const job = await createJobWithMasks([item], options);
-      await pollJob(job.job_id);
-      pushToast("Re-run finished", item.filename, "success");
+      // Resolves only once the job is finished; undefined means the poll was
+      // superseded or the view unmounted, so there is nothing to announce.
+      const finished = await pollJob(job.job_id);
+      if (finished) {
+        setBusy(false);
+        pushToast("Re-run finished", item.filename, "success");
+      }
     } catch (e) {
       setBusy(false);
       pushToast("Re-run failed", String(e), "error");
@@ -337,12 +347,14 @@ export default function HomePage() {
     () => uploads.length > 0 && !busy && !uploading,
     [uploads.length, busy, uploading],
   );
+  const isProcessing = busy || currentJob?.state === "processing";
   const workspaceTabs = useMemo(
     () => [
-      { id: "general", label: "General", icon: Grid2x2, hint: "Workflow and export" },
-      { id: "naming", label: "Naming", icon: Tags, hint: "Filename and destination" },
-      { id: "presets", label: "Presets", icon: Layers3, hint: "Saved configurations" },
-      { id: "batch", label: "Batch", icon: SlidersHorizontal, hint: "Queue and performance" },
+      { id: "input", label: "Input", icon: FolderInput, hint: "Ingestion and queue behavior" },
+      { id: "preprocess", label: "Preprocess", icon: Sparkles, hint: "Enhancement before cutout" },
+      { id: "cutout", label: "Cutout", icon: Scissors, hint: "Background removal" },
+      { id: "postprocess", label: "Postprocess", icon: WandSparkles, hint: "Resize, canvas and trim" },
+      { id: "export", label: "Export", icon: Download, hint: "Output files and naming" },
     ] as const,
     [],
   );
@@ -361,19 +373,25 @@ export default function HomePage() {
 
   const pageMeta = useMemo(() => {
     if (activeTab === "workspace") {
-      if (workspaceTab === "general") {
-        return { root: "Workspace", leaf: "General", icon: Grid2x2 };
+      if (workspaceTab === "input") {
+        return { root: "Workspace", leaf: "Input", icon: FolderInput };
       }
-      if (workspaceTab === "naming") {
-        return { root: "Workspace", leaf: "Naming", icon: Tags };
+      if (workspaceTab === "preprocess") {
+        return { root: "Workspace", leaf: "Preprocess", icon: Sparkles };
       }
-      if (workspaceTab === "presets") {
-        return { root: "Workspace", leaf: "Presets", icon: Layers3 };
+      if (workspaceTab === "cutout") {
+        return { root: "Workspace", leaf: "Cutout", icon: Scissors };
       }
-      return { root: "Workspace", leaf: "Batch", icon: Settings2 };
+      if (workspaceTab === "postprocess") {
+        return { root: "Workspace", leaf: "Postprocess", icon: WandSparkles };
+      }
+      return { root: "Workspace", leaf: "Export", icon: Download };
     }
     if (activeTab === "providers") {
-      return { root: "Providers", leaf: "", icon: SunMedium };
+      return { root: "Providers", leaf: "", icon: SlidersHorizontal };
+    }
+    if (activeTab === "models") {
+      return { root: "Models", leaf: "", icon: Boxes };
     }
     if (activeTab === "settings") {
       return { root: "Settings", leaf: "", icon: Settings2 };
@@ -467,9 +485,7 @@ export default function HomePage() {
         return;
       }
 
-      const existing = new Set(
-        (skipDuplicates ? uploads.map((u) => u.fingerprint).filter(Boolean) : []),
-      );
+      const existing = new Set(skipDuplicates ? uploads.map((u) => u.fingerprint).filter(Boolean) : []);
       const unique: File[] = [], fps: string[] = [], skipped: string[] = [];
 
       for (const file of validFiles) {
@@ -528,7 +544,7 @@ export default function HomePage() {
       }
 
       const existing = new Set(
-        (skipDuplicates ? uploads : [])
+        (ignoreAlreadyInQueue ? uploads : [])
           .filter((item) => item.storage_mode === "desktop_path")
           .map((item) => item.source_path || item.path)
           .filter(Boolean)
@@ -840,6 +856,9 @@ export default function HomePage() {
                     }}
                     onClick={() => !isDesktopMode && setActiveTab("workspace")}
                   >
+                    {isProcessing ? (
+                      <span className="absolute left-2 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-indigo-400 shadow-[0_0_10px_rgba(99,102,241,0.7)] animate-pulse" />
+                    ) : null}
                     Workspace
                   </button>
                   <button
@@ -852,6 +871,17 @@ export default function HomePage() {
                     onClick={() => !isDesktopMode && setActiveTab("providers")}
                   >
                     Providers
+                  </button>
+                  <button
+                    type="button"
+                    className={`relative h-full border-l border-white/[0.07] px-4 text-[11px] ${activeTab === "models" ? "bg-white/[0.022] text-zinc-100" : "text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300"}`}
+                    onMouseDown={(event) => {
+                      event.stopPropagation();
+                      handleTitlebarMouseDown(event, () => setActiveTab("models"));
+                    }}
+                    onClick={() => !isDesktopMode && setActiveTab("models")}
+                  >
+                    Models
                   </button>
                   <button
                     type="button"
@@ -892,9 +922,9 @@ export default function HomePage() {
                 </button>
                 <div className="flex min-w-0 items-center gap-2">
                   <div className="flex h-[21px] w-[21px] items-center justify-center rounded-[5px] border border-white/[0.07] bg-[#16161a]">
-                    <PageIcon className="h-3 w-3 text-zinc-400" />
+                    <PageIcon className={`h-3 w-3 ${isProcessing && activeTab === "workspace" ? "text-indigo-300" : "text-zinc-400"}`} />
                   </div>
-                  <span className="text-[12px] text-zinc-500">{pageMeta.root}</span>
+                  <span className={`text-[12px] ${isProcessing && activeTab === "workspace" ? "text-indigo-300" : "text-zinc-500"}`}>{pageMeta.root}</span>
                   {pageMeta.leaf ? <span className="text-zinc-700">›</span> : null}
                   {pageMeta.leaf ? (
                     <div className="relative" ref={workspacePickerRef}>
@@ -977,6 +1007,14 @@ export default function HomePage() {
                         className="h-full"
                         activeTab={workspaceTab}
                         onActiveTabChange={setWorkspaceTab}
+                        onOpenWatchFolders={() => {
+                          setActiveTab("settings");
+                          setSettingsTab("watch-folders");
+                        }}
+                        onOpenPerformance={() => {
+                          setActiveTab("settings");
+                          setSettingsTab("performance");
+                        }}
                         showLocalTabs={false}
                       />
                     </div>
@@ -1012,9 +1050,14 @@ export default function HomePage() {
                     <ProvidersSettings />
                   </div>
                 ) : null}
+                {activeTab === "models" ? (
+                  <div className="min-h-0 h-full w-full overflow-auto">
+                    <ModelsSettings />
+                  </div>
+                ) : null}
                 {activeTab === "settings" ? (
                   <div className="min-h-0 h-full w-full overflow-auto">
-                    <AppSettings />
+                    <AppSettings activeTab={settingsTab} onActiveTabChange={setSettingsTab} />
                   </div>
                 ) : null}
                 {activeTab === "history" ? (
@@ -1026,9 +1069,9 @@ export default function HomePage() {
             </AnimatePresence>
 
             <div className="flex h-[22px] items-center gap-3 border-t border-white/[0.07] bg-[#090909] px-[14px]">
-              <div className="flex items-center gap-1 font-mono text-[10px] text-zinc-500">
-                <span className={`inline-block h-1.5 w-1.5 rounded-full ${busy || currentJob?.state === "processing" ? "animate-pulse bg-indigo-400" : "bg-emerald-400"}`} />
-                <span>{busy || currentJob?.state === "processing" ? "Engine processing" : "Engine ready"}</span>
+              <div className={`flex items-center gap-1 font-mono text-[10px] ${isProcessing ? "text-indigo-300" : "text-zinc-500"}`}>
+                <span className={`inline-block h-1.5 w-1.5 rounded-full ${isProcessing ? "animate-pulse bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.7)]" : "bg-emerald-400"}`} />
+                <span>{isProcessing ? "Engine running" : "Engine ready"}</span>
               </div>
               <button
                 type="button"
@@ -1038,18 +1081,26 @@ export default function HomePage() {
                 <Github className="h-3 w-3" />
                 GitHub
               </button>
-              {updateInfo ? (
+              <div className="font-mono text-[10px] text-zinc-500">{options.cutout_model_id} · {options.enhance_level === "off" ? "enhance off" : options.enhance_engine}</div>
+              <div className="ml-auto flex items-center gap-2 font-mono text-[10px]">
+                {updateInfo ? (
+                  <button
+                    type="button"
+                    onClick={() => void openExternalLink(LATEST_RELEASE_URL)}
+                    className="inline-flex items-center gap-1 rounded-[4px] border border-indigo-400/30 bg-indigo-500/12 px-1.5 py-0.5 text-indigo-300 transition-colors hover:bg-indigo-500/18"
+                  >
+                    <Download className="h-3 w-3" />
+                    Update available
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  onClick={() => void openExternalLink(LATEST_RELEASE_URL)}
-                  className="inline-flex items-center gap-1 rounded-[4px] border border-indigo-400/30 bg-indigo-500/12 px-1.5 py-0.5 font-mono text-[10px] text-indigo-300 transition-colors hover:bg-indigo-500/18"
+                  onClick={() => void openExternalLink(updateInfo?.url ?? LATEST_RELEASE_URL)}
+                  className={`transition-colors ${updateInfo ? "text-indigo-300 hover:text-indigo-200" : "text-zinc-500 hover:text-zinc-300"}`}
                 >
-                  <Download className="h-3 w-3" />
-                  Update {updateInfo.version}
+                  v{APP_VERSION}
                 </button>
-              ) : null}
-              <div className="font-mono text-[10px] text-zinc-500">{options.local_model} · {options.enhance_engine}</div>
-              <div className="ml-auto font-mono text-[10px] text-zinc-500">v{APP_VERSION}</div>
+              </div>
             </div>
           </main>
         </div>
@@ -1106,6 +1157,35 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      <AnimatePresence>
+        {isProcessing ? (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+            className="pointer-events-none fixed bottom-8 right-8 z-[120]"
+          >
+            <div className="min-w-[220px] rounded-[14px] border border-indigo-400/20 bg-[#111118]/92 px-4 py-3 shadow-[0_24px_60px_rgba(0,0,0,0.48),0_0_0_1px_rgba(99,102,241,0.12)] backdrop-blur-md">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-[10px] border border-indigo-400/20 bg-indigo-500/10 text-indigo-300">
+                  <Activity className="h-4 w-4 animate-pulse" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-indigo-300">Running</p>
+                  <p className="mt-1 text-[12px] font-medium text-zinc-100">
+                    {currentJob ? "Batch processing in progress" : uploading ? "Uploading items" : "Starting pipeline"}
+                  </p>
+                  <p className="mt-1 text-[11px] text-zinc-400">
+                    {currentJob ? `${Math.round(currentJob.progress * 100)}% · ${options.cutout_model_id}` : options.cutout_model_id}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       {closingBackend ? (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
